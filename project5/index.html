@@ -4,10 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>線上日曆備忘錄（Supabase 版）</title>
-    <!-- 引入 Supabase SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        /* ===== 保留原本的 CSS，此處完整貼上 ===== */
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f4f6f9; display: flex; justify-content: center; padding: 30px 15px; }
         .container { width: 100%; max-width: 480px; background: #ffffff; padding: 24px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
@@ -37,15 +35,18 @@
         .delete-btn { background: #ff4d4f; color: white; border: none; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; flex-shrink: 0; }
         .delete-btn:hover { background: #d9363e; }
         .empty-msg { text-align: center; color: #aaa; font-size: 13px; padding: 10px 0; }
+        /* 除錯用的錯誤訊息框，之後確認沒問題可以拿掉 */
+        .debug-banner { display: none; background: #fff3cd; border: 1px solid #ffe08a; color: #664d03; padding: 10px 12px; border-radius: 8px; font-size: 12px; margin-bottom: 16px; white-space: pre-wrap; word-break: break-word; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>日曆備忘錄</h1>
+        <div id="debugBanner" class="debug-banner"></div>
         <div class="calendar">
             <div class="calendar-header">
                 <button class="nav-btn" onclick="changeMonth(-1)">&lt;</button>
-                <span id="calendarTitle"></span>
+                <span id="calendarTitle">載入中...</span>
                 <button class="nav-btn" onclick="changeMonth(1)">&gt;</button>
             </div>
             <div class="calendar-grid" id="calendarGrid"></div>
@@ -59,11 +60,29 @@
     </div>
 
     <script>
-        // ====== 請替換成你的 Supabase 設定 ======
+        // ====== 除錯輔助：任何全域錯誤都會顯示在畫面上 ======
+        function showDebug(msg) {
+            const banner = document.getElementById('debugBanner');
+            if (!banner) return;
+            banner.style.display = 'block';
+            banner.textContent = '⚠️ 除錯訊息：' + msg;
+            console.error(msg);
+        }
+        window.addEventListener('error', (e) => showDebug(e.message));
+
+        // ====== Supabase 設定 ======
         const SUPABASE_URL = 'https://broljqhljijzhwmexaep.supabase.co';
         const SUPABASE_ANON_KEY = 'sb_publishable_qqIgjS8JRD7FUSDHID86Tg_mjIjeWd9';
 
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        let sb;
+        try {
+            if (!window.supabase || typeof window.supabase.createClient !== 'function') {
+                throw new Error('Supabase SDK 沒有載入成功（window.supabase 不存在）。請檢查網路連線，或瀏覽器是否封鎖了 cdn.jsdelivr.net。');
+            }
+            sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        } catch (err) {
+            showDebug(err.message);
+        }
 
         const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
         let viewDate = new Date();
@@ -76,27 +95,34 @@
             return `${year}-${m}-${d}`;
         }
 
-        // 取得指定日期的記事
         async function getNotesForDate(dateKey) {
-            const { data, error } = await supabase
-                .from('calendar_notes')
-                .select('notes')
-                .eq('date_key', dateKey)
-                .maybeSingle();
-            if (error) throw error;
-            return data ? data.notes : [];
+            if (!sb) return [];
+            try {
+                const { data, error } = await sb
+                    .from('calendar_notes')
+                    .select('notes')
+                    .eq('date_key', dateKey)
+                    .maybeSingle();
+                if (error) {
+                    showDebug('讀取資料庫失敗: ' + error.message);
+                    return [];
+                }
+                return data ? data.notes : [];
+            } catch (err) {
+                showDebug('連線失敗: ' + err.message);
+                return [];
+            }
         }
 
-        // 儲存指定日期的記事（若無則新增，有則更新）
         async function saveNotesForDate(dateKey, notesArray) {
-            const { data, error } = await supabase
+            if (!sb) throw new Error('Supabase 尚未連線成功');
+            const { data, error } = await sb
                 .from('calendar_notes')
                 .upsert({ date_key: dateKey, notes: notesArray }, { onConflict: 'date_key' });
             if (error) throw error;
             return data;
         }
 
-        // 渲染月曆（需先載入當月所有有記事的日期）
         async function renderCalendar() {
             const grid = document.getElementById('calendarGrid');
             const title = document.getElementById('calendarTitle');
@@ -107,18 +133,26 @@
             const month = viewDate.getMonth();
             title.textContent = `${year} 年 ${month + 1} 月`;
 
-            // 查詢當月所有 date_key
-            const startKey = formatDateKey(year, month, 1);
-            const endKey = formatDateKey(year, month, new Date(year, month + 1, 0).getDate());
-            const { data: monthData, error } = await supabase
-                .from('calendar_notes')
-                .select('date_key')
-                .gte('date_key', startKey)
-                .lte('date_key', endKey);
-            if (error) throw error;
+            let notesMap = {};
+            if (sb) {
+                try {
+                    const startKey = formatDateKey(year, month, 1);
+                    const endKey = formatDateKey(year, month, new Date(year, month + 1, 0).getDate());
+                    const { data: monthData, error } = await sb
+                        .from('calendar_notes')
+                        .select('date_key')
+                        .gte('date_key', startKey)
+                        .lte('date_key', endKey);
 
-            const notesMap = {};
-            (monthData || []).forEach(row => { notesMap[row.date_key] = true; });
+                    if (error) {
+                        showDebug('無法取得當月標記: ' + error.message);
+                    } else if (monthData) {
+                        monthData.forEach(row => { notesMap[row.date_key] = true; });
+                    }
+                } catch (err) {
+                    showDebug('資料庫查詢異常: ' + err.message);
+                }
+            }
 
             weekDays.forEach(day => {
                 const header = document.createElement('div');
@@ -172,9 +206,10 @@
             const dateDisplay = document.getElementById('selectedDateDisplay');
             if (!list || !dateDisplay) return;
 
+            dateDisplay.textContent = `📅 ${selectedDateKey} 的記事：`;
+
             try {
                 const currentNotes = await getNotesForDate(selectedDateKey);
-                dateDisplay.textContent = `📅 ${selectedDateKey} 的記事：`;
                 list.innerHTML = '';
 
                 if (currentNotes.length === 0) {
@@ -199,8 +234,8 @@
                     list.appendChild(li);
                 });
             } catch (err) {
-                console.error('讀取記事失敗:', err);
-                list.innerHTML = '<p class="empty-msg">讀取失敗，請稍後再試</p>';
+                showDebug('讀取記事失敗: ' + err.message);
+                list.innerHTML = '<p class="empty-msg">讀取失敗，請檢查資料庫設定</p>';
             }
         }
 
@@ -220,8 +255,8 @@
                 renderCalendar();
                 renderNotes();
             } catch (err) {
-                console.error('新增失敗:', err);
-                alert('新增失敗，請檢查網路或權限設定');
+                showDebug('新增失敗: ' + err.message);
+                alert('新增失敗，請確定已在 Supabase 建立 calendar_notes 資料表並設定 RLS 權限');
             }
         }
 
@@ -233,44 +268,14 @@
                 renderCalendar();
                 renderNotes();
             } catch (err) {
-                console.error('刪除失敗:', err);
+                showDebug('刪除失敗: ' + err.message);
                 alert('刪除失敗，請稍後再試');
             }
         }
 
-        // 初始化
+        // 初始化（一定會執行，就算 supabase 連線失敗，月曆本身也會顯示）
         renderCalendar();
         renderNotes();
     </script>
-    <!-- === 浮動返回首頁按鈕 === -->
-<a href="../" class="back-home-btn">🏠 返回首頁</a>
-
-<style>
-  .back-home-btn {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    z-index: 99999;
-    background: rgba(15, 23, 42, 0.9); /* 深色半透明背景 */
-    color: #ffffff;
-    padding: 10px 16px;
-    border-radius: 30px;
-    text-decoration: none;
-    font-size: 14px;
-    font-weight: 600;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-    backdrop-filter: blur(4px); /* 模糊背景效果 */
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    transition: all 0.2s ease;
-  }
-
-  /* 手機按壓時的縮放回饋 */
-  .back-home-btn:active {
-    transform: scale(0.92);
-    background: #0f172a;
-  }
-</style>
 </body>
 </html>
