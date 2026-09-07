@@ -1,0 +1,1808 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="appTitle">IPQC異常資料統計</title>
+
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome 6 -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <style>
+        :root {
+            --primary-color: #1a73e8;
+            --primary-dark: #1557b0;
+            --danger-color: #ea4335;
+            --warning-color: #fbbc04;
+            --card-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+            --border-radius: 12px;
+            --transition: all 0.3s ease;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', 'Microsoft JhengHei', 'PingFang TC', sans-serif;
+            padding-bottom: 40px;
+        }
+        body.viewer-mode .editor-only { display: none !important; }
+
+        .navbar-custom {
+            background: linear-gradient(135deg, #1a73e8 0%, #0d47a1 100%);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            padding: 16px 0;
+        }
+        .navbar-custom .navbar-brand {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .navbar-custom .navbar-brand i {
+            font-size: 1.8rem;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 10px;
+            border-radius: 10px;
+        }
+        .navbar-custom .badge-date {
+            background: rgba(255, 255, 255, 0.25);
+            color: #fff;
+            font-size: 0.9rem;
+            padding: 8px 14px;
+            border-radius: 20px;
+            font-weight: 500;
+        }
+
+        .card-custom {
+            background: #fff;
+            border: none;
+            border-radius: var(--border-radius);
+            box-shadow: var(--card-shadow);
+            transition: var(--transition);
+            overflow: hidden;
+        }
+        .card-custom:hover { box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12); }
+        .card-custom .card-header {
+            background: #fff;
+            border-bottom: 2px solid #e8ecf1;
+            padding: 16px 20px;
+            font-weight: 700;
+            font-size: 1.05rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #333;
+        }
+        .card-custom .card-header i { color: var(--primary-color); }
+        .card-custom .card-body { padding: 20px; }
+
+        .filter-section .form-label { font-weight: 600; font-size: 0.85rem; color: #555; margin-bottom: 4px; }
+        .filter-section .form-select, .filter-section .form-control {
+            border-radius: 8px; border: 1.5px solid #dee2e6; transition: var(--transition);
+            font-size: 0.95rem; padding: 8px 12px;
+        }
+        .filter-section .form-select:focus, .filter-section .form-control:focus {
+            border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(26,115,232,0.15);
+        }
+
+        .btn-custom-primary {
+            background: var(--primary-color); color: #fff; border: none; border-radius: 8px;
+            padding: 10px 20px; font-weight: 600; transition: var(--transition);
+            display: inline-flex; align-items: center; gap: 6px;
+        }
+        .btn-custom-primary:hover { background: var(--primary-dark); transform: translateY(-1px); }
+        .btn-custom-outline {
+            background: #fff; color: var(--primary-color); border: 2px solid var(--primary-color);
+            border-radius: 8px; padding: 8px 16px; font-weight: 600; transition: var(--transition);
+            display: inline-flex; align-items: center; gap: 6px;
+        }
+        .btn-custom-outline:hover { background: var(--primary-color); color: #fff; }
+        .btn-custom-danger {
+            background: #fff; color: var(--danger-color); border: 2px solid var(--danger-color);
+            border-radius: 8px; padding: 8px 16px; font-weight: 600; transition: var(--transition);
+            display: inline-flex; align-items: center; gap: 6px;
+        }
+        .btn-custom-danger:hover { background: var(--danger-color); color: #fff; }
+
+        .table-custom { border-collapse: separate; border-spacing: 0; width: 100%; }
+        .table-custom thead th {
+            background: #f1f4f9; color: #333; font-weight: 700; font-size: 0.85rem;
+            text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 14px;
+            border-bottom: 2px solid #dee2e6; white-space: nowrap;
+            position: sticky; top: 0; z-index: 10;
+        }
+        .table-custom tbody td {
+            padding: 12px 14px; vertical-align: middle; border-bottom: 1px solid #eef0f3;
+            font-size: 0.9rem; color: #444;
+        }
+        .table-custom tbody tr { transition: var(--transition); }
+        .table-custom tbody tr:hover { background: #f8fafd; }
+        .table-custom tbody tr:last-child td { border-bottom: none; }
+
+        .badge-shift {
+            padding: 6px 12px; border-radius: 20px; font-weight: 700; font-size: 0.8rem;
+            letter-spacing: 0.5px; display: inline-block; min-width: 40px; text-align: center;
+        }
+        .badge-shift-S1 { background: #fde8e8; color: #c0392b; }
+        .badge-shift-S2 { background: #e3f2fd; color: #1565c0; }
+        .badge-shift-S3 { background: #e8f5e9; color: #2e7d32; }
+        .badge-shift-S4 { background: #fff3e0; color: #e65100; }
+
+        .photo-thumb {
+            width: 56px; height: 56px; object-fit: cover; border-radius: 8px; cursor: pointer;
+            transition: var(--transition); border: 2px solid #e8ecf1;
+        }
+        .photo-thumb:hover { transform: scale(1.1); border-color: var(--primary-color); }
+        .photo-placeholder {
+            width: 56px; height: 56px; border-radius: 8px; background: #f1f4f9;
+            display: flex; align-items: center; justify-content: center; color: #b0b8c4;
+            font-size: 1.3rem; border: 2px dashed #d0d7e2;
+        }
+
+        .empty-state { text-align: center; padding: 60px 20px; color: #9aa5b1; }
+        .empty-state i { font-size: 4rem; margin-bottom: 16px; opacity: 0.5; }
+        .empty-state h5 { font-weight: 600; color: #666; }
+
+        .loading-spinner { display: flex; align-items: center; justify-content: center; padding: 40px; }
+        .spinner-border { width: 3rem; height: 3rem; }
+
+        .photo-preview-container { position: relative; display: inline-block; margin-top: 8px; }
+        .photo-preview-container img {
+            max-width: 200px; max-height: 200px; border-radius: 8px; border: 2px solid #dee2e6; object-fit: cover;
+        }
+        .photo-preview-container .btn-remove-photo {
+            position: absolute; top: -10px; right: -10px; background: var(--danger-color);
+            color: #fff; border: none; border-radius: 50%; width: 26px; height: 26px;
+            font-size: 0.7rem; cursor: pointer; display: flex; align-items: center; justify-content: center;
+        }
+
+        .modal-photo-view .modal-content { background: transparent; border: none; box-shadow: none; }
+        .modal-photo-view .modal-body { display: flex; align-items: center; justify-content: center; padding: 0; }
+        .modal-photo-view .modal-body img {
+            max-width: 100%; max-height: 85vh; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+        }
+
+        .fab-add {
+            position: fixed; bottom: 30px; right: 30px; width: 60px; height: 60px; border-radius: 50%;
+            background: var(--primary-color); color: #fff; border: none; font-size: 1.8rem;
+            box-shadow: 0 6px 20px rgba(26,115,232,0.4); cursor: pointer; transition: var(--transition);
+            z-index: 1000; display: flex; align-items: center; justify-content: center;
+        }
+        .fab-add:hover { transform: scale(1.08); background: var(--primary-dark); }
+
+        .toast-container-custom { position: fixed; top: 20px; right: 20px; z-index: 9999; }
+        .toast-custom { border-radius: 10px; box-shadow: 0 6px 20px rgba(0,0,0,0.15); border: none; overflow: hidden; min-width: 300px; }
+        .toast-custom .toast-header { border-bottom: none; padding: 12px 16px; font-weight: 600; }
+
+        .person-stat-item,
+        .description-stat-item {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 8px 0; border-bottom: 1px solid #f0f2f5;
+        }
+        .person-stat-item:last-child,
+        .description-stat-item:last-child { border-bottom: none; }
+        .person-stat-name,
+        .description-stat-name { font-weight: 600; color: #333; }
+        .person-stat-count,
+        .description-stat-count {
+            background: var(--primary-color); color: #fff; padding: 4px 12px;
+            border-radius: 20px; font-weight: 700; font-size: 0.85rem;
+        }
+
+        .chart-container { position: relative; height: 220px; width: 100%; }
+
+        .description-text {
+            max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            display: block; cursor: default;
+        }
+        .description-text:hover { white-space: normal; overflow: visible; word-break: break-all; }
+
+        select[multiple] { height: auto; min-height: 120px; }
+        select[multiple] option { padding: 4px 8px; }
+
+        .option-item {
+            display: flex; align-items: center; gap: 8px;
+            padding: 8px 0; border-bottom: 1px solid #f0f2f5;
+        }
+        .option-item input {
+            flex: 1; border: 1px solid #dee2e6; border-radius: 6px; padding: 6px 10px;
+            font-size: 0.9rem;
+        }
+        .option-item .btn-sm { white-space: nowrap; }
+
+        /* 拖曳排序相關樣式 */
+        .dashboard-block { transition: box-shadow 0.2s, transform 0.2s; }
+        .dashboard-block.dragging { opacity: 0.5; box-shadow: 0 10px 30px rgba(0,0,0,0.3); transform: scale(0.98); }
+        .dashboard-block .drag-handle { cursor: grab; user-select: none; }
+        .dashboard-block .drag-handle:active { cursor: grabbing; }
+        .dashboard-block.drag-over { border-top: 4px solid var(--primary-color); }
+
+        /* 登入畫面樣式 */
+        .login-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #1a73e8 0%, #0d47a1 100%);
+            z-index: 9999; display: flex; align-items: center; justify-content: center;
+        }
+        .login-card {
+            background: #fff; border-radius: 20px; padding: 40px; width: 90%; max-width: 400px;
+            text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.3); position: relative;
+        }
+        .login-card h3 { color: #1a73e8; font-weight: 700; margin-bottom: 10px; }
+        .login-card .role-btn {
+            display: block; width: 100%; padding: 14px; margin-bottom: 12px; border-radius: 10px;
+            font-weight: 700; font-size: 1.1rem; border: 2px solid #1a73e8; background: #fff; color: #1a73e8;
+            transition: all 0.3s; cursor: pointer;
+        }
+        .login-card .role-btn:hover { background: #1a73e8; color: #fff; }
+        .login-card .role-btn.viewer { border-color: #6c757d; color: #6c757d; }
+        .login-card .role-btn.viewer:hover { background: #6c757d; color: #fff; }
+        .password-box { display: none; margin-top: 15px; }
+        .password-box input {
+            width: 100%; padding: 10px; border: 2px solid #dee2e6; border-radius: 8px;
+            text-align: center; margin-bottom: 10px;
+        }
+        .password-box .btn-confirm {
+            background: #1a73e8; color: #fff; border: none; padding: 10px 20px;
+            border-radius: 8px; font-weight: 600; cursor: pointer;
+        }
+        .login-lang-btn {
+            position: absolute; top: 15px; right: 20px; border-radius: 20px;
+            font-size: 0.85rem; font-weight: 600; padding: 4px 12px;
+        }
+
+        /* 篩選期間標籤樣式 */
+        .filter-period-badge {
+            background: #e8f0fe; color: #1a73e8; font-size: 0.75rem; font-weight: 600;
+            padding: 4px 10px; border-radius: 16px; margin-left: 6px;
+            display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
+        }
+        .filter-period-badge i { font-size: 0.7rem; color: #1a73e8; }
+
+        /* 數據列表捲動容器 */
+        .table-scroll-container {
+            max-height: 450px; overflow-y: auto; overflow-x: hidden; position: relative;
+        }
+        .table-scroll-container .table-responsive { overflow-x: auto; }
+    </style>
+</head>
+<body class="viewer-mode">
+
+    <!-- 登入畫面 -->
+    <div id="loginOverlay" class="login-overlay">
+        <div class="login-card">
+            <button class="btn btn-outline-primary btn-sm login-lang-btn" onclick="toggleLanguage()">
+                <i class="fas fa-globe me-1"></i><span class="langToggleBtnText">EN</span>
+            </button>
+            <h3><i class="fas fa-lock me-2"></i><span data-i18n="loginTitle">IPQC異常資料統計</span></h3>
+            <p class="text-muted mb-4" data-i18n="selectRole">請選擇進入身分</p>
+            <button class="role-btn viewer" onclick="showViewerPasswordBox()">
+                <i class="fas fa-eye me-2"></i><span data-i18n="loginViewer">以檢視者進入</span>
+            </button>
+            <button class="role-btn" onclick="showEditorPasswordBox()">
+                <i class="fas fa-user-edit me-2"></i><span data-i18n="loginEditor">以編輯者進入</span>
+            </button>
+
+            <div id="viewerPasswordBox" class="password-box">
+                <input type="password" id="viewerPassword" data-i18n-placeholder="inputViewerPass" placeholder="請輸入檢視者密碼">
+                <button class="btn-confirm" onclick="loginAsViewer()" data-i18n="confirm">確認</button>
+                <button class="btn btn-link" onclick="hideAllPasswordBoxes()" data-i18n="cancel">取消</button>
+            </div>
+
+            <div id="editorPasswordBox" class="password-box">
+                <input type="password" id="editorPassword" data-i18n-placeholder="inputEditorPass" placeholder="請輸入編輯者密碼">
+                <button class="btn-confirm" onclick="loginAsEditor()" data-i18n="confirm">確認</button>
+                <button class="btn btn-link" onclick="hideAllPasswordBoxes()" data-i18n="cancel">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 頂部導航 -->
+    <nav class="navbar navbar-expand-lg navbar-custom">
+        <div class="container d-flex justify-content-between align-items-center">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-clipboard-list"></i>
+                <span data-i18n="appTitle">IPQC異常資料統計</span>
+            </a>
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge-date d-none d-md-inline-block" id="currentDateDisplay">
+                    <i class="fas fa-calendar-alt me-1"></i>
+                    載入中...
+                </span>
+                <button class="btn btn-outline-light btn-sm" onclick="toggleLanguage()" style="border-radius:20px;">
+                    <i class="fas fa-globe me-1"></i><span class="langToggleBtnText">EN</span>
+                </button>
+                <button class="btn btn-outline-light btn-sm editor-only" onclick="openChangePasswordModal()" style="border-radius:20px;">
+                    <i class="fas fa-key me-1"></i><span data-i18n="changePassword">修改密碼</span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+
+        <!-- 查詢篩選區域 -->
+        <div class="card card-custom mb-4">
+            <div class="card-header">
+                <i class="fas fa-filter"></i> <span data-i18n="filterHeader">查詢篩選</span>
+            </div>
+            <div class="card-body filter-section">
+                <div class="row g-3 align-items-end">
+                    <div class="col-6 col-md-2">
+                        <label class="form-label" data-i18n="shift">班別</label>
+                        <select class="form-select" id="filterShift">
+                            <option value="all" data-i18n="allShifts">全部班別</option>
+                            <option value="S1">S1</option>
+                            <option value="S2">S2</option>
+                            <option value="S3">S3</option>
+                            <option value="S4">S4</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <label class="form-label" data-i18n="year">年份</label>
+                        <select class="form-select" id="filterYear">
+                            <option value="all" data-i18n="allYears">全部年份</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <label class="form-label" data-i18n="month">月份</label>
+                        <select class="form-select" id="filterMonth">
+                            <option value="all" data-i18n="allMonths">全部月份</option>
+                            <option value="1">1月</option>
+                            <option value="2">2月</option>
+                            <option value="3">3月</option>
+                            <option value="4">4月</option>
+                            <option value="5">5月</option>
+                            <option value="6">6月</option>
+                            <option value="7">7月</option>
+                            <option value="8">8月</option>
+                            <option value="9">9月</option>
+                            <option value="10">10月</option>
+                            <option value="11">11月</option>
+                            <option value="12">12月</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <label class="form-label" data-i18n="date">日期</label>
+                        <select class="form-select" id="filterDate">
+                            <option value="all" data-i18n="allDates">全部日期</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-4 d-flex gap-2">
+                        <button class="btn btn-custom-primary flex-grow-1" onclick="loadDataAndStats()">
+                            <i class="fas fa-search"></i> <span data-i18n="search">查詢</span>
+                        </button>
+                        <button class="btn btn-custom-outline" onclick="resetFilters()" title="重置篩選">
+                            <i class="fas fa-undo"></i>
+                        </button>
+                        <button class="btn btn-custom-outline" onclick="exportCSV()" title="匯出CSV">
+                            <i class="fas fa-file-export"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 可拖曳排序的儀表板區塊 -->
+        <div id="dashboardContainer" class="d-flex flex-column gap-3 mb-4">
+            <!-- 1. 班別統計圖表 -->
+            <div class="card card-custom dashboard-block" data-block="shiftChart" draggable="true">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span class="drag-handle">
+                        <i class="fas fa-grip-vertical me-2"></i>
+                        <i class="fas fa-chart-column"></i> <span data-i18n="chartBlockTitle">班別統計圖表</span>
+                        <span class="filter-period-badge" id="filterPeriodBadge_chart">
+                            <i class="fas fa-calendar"></i> <span class="fp-text">全部</span>
+                        </span>
+                    </span>
+                    <span class="badge bg-primary" id="chartTotalBadge">篩選總計：0</span>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="shiftChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. 人員異常統計 -->
+            <div class="card card-custom dashboard-block" data-block="personStats" draggable="true">
+                <div class="card-header">
+                    <span class="drag-handle">
+                        <i class="fas fa-grip-vertical me-2"></i>
+                        <i class="fas fa-user-tag"></i> <span data-i18n="personBlockTitle">人員異常統計</span>
+                        <span class="filter-period-badge" id="filterPeriodBadge_person">
+                            <i class="fas fa-calendar"></i> <span class="fp-text">全部</span>
+                        </span>
+                    </span>
+                </div>
+                <div class="card-body" id="personStatsContainer" style="max-height: 280px; overflow-y: auto;">
+                    <div class="empty-state py-3">
+                        <i class="fas fa-user-slash"></i>
+                        <p class="mb-0" data-i18n="noPersonData">尚無人員統計數據</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. 異常原因統計表 -->
+            <div class="card card-custom dashboard-block" data-block="descriptionStats" draggable="true">
+                <div class="card-header">
+                    <span class="drag-handle">
+                        <i class="fas fa-grip-vertical me-2"></i>
+                        <i class="fas fa-list-alt"></i> <span data-i18n="descBlockTitle">異常原因統計表</span>
+                        <span class="filter-period-badge" id="filterPeriodBadge_desc">
+                            <i class="fas fa-calendar"></i> <span class="fp-text">全部</span>
+                        </span>
+                    </span>
+                </div>
+                <div class="card-body" id="descriptionStatsContainer" style="max-height: 300px; overflow-y: auto;">
+                    <div class="empty-state py-3">
+                        <i class="fas fa-chart-pie"></i>
+                        <p class="mb-0" data-i18n="noDescData">尚無異常原因統計數據</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. 異常數據列表 -->
+            <div class="card card-custom dashboard-block" data-block="dataList" draggable="true">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span class="drag-handle">
+                        <i class="fas fa-grip-vertical me-2"></i>
+                        <i class="fas fa-list"></i> <span data-i18n="listBlockTitle">異常數據列表</span>
+                        <span class="filter-period-badge" id="filterPeriodBadge_list">
+                            <i class="fas fa-calendar"></i> <span class="fp-text">全部</span>
+                        </span>
+                    </span>
+                    <span class="badge bg-primary" id="dataCountBadge">0 筆</span>
+                </div>
+                <div class="card-body p-0">
+                    <div id="dataTableContainer">
+                        <div class="loading-spinner" id="loadingSpinner">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">載入中...</span>
+                            </div>
+                        </div>
+                        <div id="dataTableWrapper" style="display:none;">
+                            <div class="table-scroll-container">
+                                <div class="table-responsive">
+                                    <table class="table table-custom mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th style="width:50px;" data-i18n="seq">序號</th>
+                                                <th data-i18n="abnormalDate">異常日期</th>
+                                                <th data-i18n="abnormalShift">異常班別</th>
+                                                <th data-i18n="abnormalPerson">異常人員</th>
+                                                <th data-i18n="abnormalDesc">異常描述</th>
+                                                <th data-i18n="abnormalPhoto">異常照片</th>
+                                                <th class="editor-only" style="width:80px;" data-i18n="actions">操作</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="dataTableBody"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div id="emptyState" class="empty-state" style="display:none;">
+                                <i class="fas fa-inbox"></i>
+                                <h5 data-i18n="noDataTitle">暫無異常數據</h5>
+                                <p class="text-muted" data-i18n="noDataSub">點擊右下角 + 按鈕新增異常記錄</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 浮動添加按鈕（僅編輯者可見） -->
+    <button class="fab-add editor-only" onclick="openAddModal()" title="新增異常記錄">
+        <i class="fas fa-plus"></i>
+    </button>
+
+    <!-- 新增數據模態框 -->
+    <div class="modal fade" id="addModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content" style="border-radius: 16px; border: none; box-shadow: 0 20px 60px rgba(0,0,0,0.2);">
+                <div class="modal-header" style="background: linear-gradient(135deg, #1a73e8 0%, #0d47a1 100%); color: #fff; border-radius: 16px 16px 0 0; padding: 18px 24px;">
+                    <h5 class="modal-title fw-bold">
+                        <i class="fas fa-plus-circle me-2"></i><span data-i18n="addRecordTitle">新增異常記錄</span>
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <form id="addForm">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold"><span data-i18n="abnormalDate">異常日期</span> <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" id="inputDate" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold"><span data-i18n="abnormalShift">異常班別</span> <span class="text-danger">*</span></label>
+                                <select class="form-select" id="inputShift" required onchange="updatePersonOptions()">
+                                    <option value="" data-i18n="selectShift">請選擇班別</option>
+                                    <option value="S1">S1</option>
+                                    <option value="S2">S2</option>
+                                    <option value="S3">S3</option>
+                                    <option value="S4">S4</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold"><span data-i18n="abnormalPerson">異常人員</span> <span class="text-danger">*</span></label>
+                                <select class="form-select" id="inputPerson" required>
+                                    <option value="" data-i18n="selectPerson">請先選擇班別</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold" data-i18n="abnormalPhoto">異常照片</label>
+                                <input type="file" class="form-control" id="inputPhoto" accept="image/*" onchange="previewPhoto(event)">
+                            </div>
+                            <div class="col-12">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <label class="form-label fw-bold mb-0"><span data-i18n="descLabel">異常描述（可複選，按住 Ctrl 鍵點選）</span> <span class="text-danger">*</span></label>
+                                    <button type="button" class="btn btn-sm btn-outline-primary editor-only" onclick="openDescriptionOptionsModal()" title="管理異常描述選項">
+                                        <i class="fas fa-cog me-1"></i> <span data-i18n="manageOptions">管理選項</span>
+                                    </button>
+                                </div>
+                                <select class="form-select" id="inputDescription" multiple size="6" required>
+                                    <!-- 選項由 JavaScript 從後端載入 -->
+                                </select>
+                            </div>
+                            <div class="col-12" id="photoPreviewContainer" style="display:none;">
+                                <div class="photo-preview-container">
+                                    <img id="photoPreview" src="" alt="照片預覽">
+                                    <button type="button" class="btn-remove-photo" onclick="removePhoto()" title="移除照片">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer" style="border-top: 1px solid #eef0f3; padding: 16px 24px;">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="border-radius:8px;">
+                        <i class="fas fa-times me-1"></i> <span data-i18n="cancel">取消</span>
+                    </button>
+                    <button type="button" class="btn btn-custom-primary" onclick="submitData()">
+                        <i class="fas fa-save me-1"></i> <span data-i18n="save">儲存</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 異常描述選項管理模態框 -->
+    <div class="modal fade" id="descriptionOptionsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-md modal-dialog-centered">
+            <div class="modal-content" style="border-radius: 16px; border: none; box-shadow: 0 20px 60px rgba(0,0,0,0.2);">
+                <div class="modal-header" style="background: linear-gradient(135deg, #1a73e8 0%, #0d47a1 100%); color: #fff; border-radius: 16px 16px 0 0; padding: 16px 20px;">
+                    <h5 class="modal-title fw-bold">
+                        <i class="fas fa-cog me-2"></i><span data-i18n="manageOptions">管理異常描述選項</span>
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">新增選項</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="newOptionInput" placeholder="輸入新異常描述">
+                            <button class="btn btn-custom-primary" type="button" onclick="addDescriptionOption()">
+                                <i class="fas fa-plus me-1"></i> 新增
+                            </button>
+                        </div>
+                    </div>
+                    <div id="descriptionOptionsList" style="max-height: 300px; overflow-y: auto;">
+                        <!-- 動態渲染 -->
+                    </div>
+                </div>
+                <div class="modal-footer" style="border-top: 1px solid #eef0f3; padding: 12px 20px;">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="border-radius:8px;" data-i18n="cancel">關閉</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 照片大圖查看模態框 -->
+    <div class="modal fade modal-photo-view" id="photoViewModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-body">
+                    <img id="photoViewImage" src="" alt="異常照片大圖">
+                </div>
+                <div class="text-center mt-2">
+                    <button type="button" class="btn btn-light btn-lg rounded-circle" data-bs-dismiss="modal" style="width:50px;height:50px;">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 修改密碼模態框 -->
+    <div class="modal fade" id="changePasswordModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content" style="border-radius:16px; border:none;">
+                <div class="modal-header" style="background:linear-gradient(135deg,#1a73e8,#0d47a1); color:#fff;">
+                    <h5 class="modal-title fw-bold"><i class="fas fa-key me-2"></i><span data-i18n="changePassword">修改密碼</span></h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label">選擇要修改的密碼</label>
+                        <select class="form-select" id="passwordTypeSelect">
+                            <option value="editor">編輯者密碼</option>
+                            <option value="viewer">檢視者密碼</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">舊密碼</label>
+                        <input type="password" class="form-control" id="oldPassword">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">新密碼（至少4位）</label>
+                        <input type="password" class="form-control" id="newPassword">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">確認新密碼</label>
+                        <input type="password" class="form-control" id="confirmNewPassword">
+                    </div>
+                </div>
+                <div class="modal-footer" style="border-top:1px solid #eef0f3;">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="cancel">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="submitChangePassword()" data-i18n="confirm">確認修改</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast 通知容器 -->
+    <div class="toast-container-custom" id="toastContainer"></div>
+
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // ============================================================
+        //  ★★★ 配置區域：請填入您的 Supabase 專案資訊 ★★★
+        //  在 Supabase Dashboard → Project Settings → API 頁面可以找到
+        //  SUPABASE_URL：Project URL（例如 https://abcdefgh.supabase.co）
+        //  SUPABASE_ANON_KEY：anon / public key
+        //  API_BASE 會自動推導出後端函式 ipqc 的網址，不需手動填
+        // ============================================================
+        const SUPABASE_URL = 'https://zovgygcjnkwepmodvnyc.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_M3KT6ZzPWRfIn3X8_GlFqQ_YHJe1Ghb';
+        const API_BASE = SUPABASE_URL.replace('.supabase.co', '.functions.supabase.co') + '/ipqc';
+        // ============================================================
+
+        let editorToken = null;
+        let currentData = [];
+        let shiftChartInstance = null;
+        let photoBase64 = '';
+        let descriptionOptions = [];
+
+        // 統一呼叫後端函式：自動附上 Supabase 認證 headers
+        async function apiFetch(path, options = {}) {
+            const headers = {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
+            };
+            return fetch(path, { ...options, headers });
+        }
+
+        // ==================== 多國語言與異常描述翻譯配置 ====================
+        let currentLang = localStorage.getItem('appLang') || 'zh';
+
+        const descriptionTranslations = {
+            "JR黑頭": "JR Black Head",
+            "極柄撞歪": "Tab Bent",
+            "接頭未剔除": "Joint Not Rejected",
+            "插單過流": "Manual Order Overcurrent",
+            "隔離紙未端過流": "Separator End Overcurrent",
+            "極柄角度異常": "Tab Angle Abnormal",
+            "極柄數量異常": "Tab Quantity Abnormal",
+            "JR撞(夾)傷": "JR Damaged/Pinch",
+            "極柄彎折": "Tab Folded",
+            "極片皺摺": "Electrode Wrinkled",
+            "極柄膠帶貼覆異常": "Tab Tape Abnormal",
+            "中心孔異常": "Center Hole Abnormal",
+            "JR抽頭(尾)": "JR Head/Tail Pull",
+            "極柄歪斜": "Tab Misaligned",
+            "封止膠帶貼覆異常": "Sealing Tape Abnormal",
+            "極片破損": "Electrode Broken",
+            "雙正極柄重疊寬度異常": "Dual Anode Tab Overlap Width Abnormal",
+            "極片接頭(M1)": "Electrode Joint (M1)",
+            "中心孔皺摺": "Center Hole Wrinkled",
+            "迴轉點異常": "Rotation Point Abnormal",
+            "雙正極柄合焊異常": "Dual Anode Tab Welding Abnormal",
+            "封止膠帶超出JR": "Sealing Tape Exceeds JR",
+            "極柄反折": "Tab Reverse Fold",
+            "負極柄壓花異常": "Cathode Tab Embossing Abnormal",
+            "JR異物": "JR Foreign Material",
+            "極柄長度異常": "Tab Length Abnormal",
+            "極柄裁切異常": "Tab Cutting Abnormal",
+            "隔離紙抽絲": "Separator Threading",
+            "覆蓋膠帶貼覆異常": "Cover Tape Abnormal",
+            "隔離紙末端未剔除": "Separator End Not Rejected",
+            "隔離紙異常": "Separator Abnormal",
+            "負極柄壓花位置異常": "Cathode Tab Embossing Position Abnormal",
+            "極片來料異常": "Incoming Electrode Abnormal",
+            "隔離紙錯位": "Separator Misaligned",
+            "覆蓋膠帶貼覆不良": "Cover Tape Application Defect"
+        };
+
+        const translations = {
+            zh: {
+                appTitle: "IPQC異常資料統計",
+                loginTitle: "IPQC異常資料統計",
+                selectRole: "請選擇進入身分",
+                loginViewer: "以檢視者進入",
+                loginEditor: "以編輯者進入",
+                inputViewerPass: "請輸入檢視者密碼",
+                inputEditorPass: "請輸入編輯者密碼",
+                confirm: "確認",
+                cancel: "取消",
+                changePassword: "修改密碼",
+                filterHeader: "查詢篩選",
+                shift: "班別",
+                allShifts: "全部班別",
+                year: "年份",
+                allYears: "全部年份",
+                month: "月份",
+                allMonths: "全部月份",
+                date: "日期",
+                allDates: "全部日期",
+                search: "查詢",
+                reset: "重置",
+                export: "匯出CSV",
+                chartBlockTitle: "班別統計圖表",
+                personBlockTitle: "人員異常統計",
+                descBlockTitle: "異常原因統計表",
+                listBlockTitle: "異常數據列表",
+                totalPrefix: "篩選總計：",
+                noPersonData: "尚無人員統計數據",
+                noDescData: "尚無異常原因統計數據",
+                seq: "序號",
+                abnormalDate: "異常日期",
+                abnormalShift: "異常班別",
+                abnormalPerson: "異常人員",
+                abnormalDesc: "異常描述",
+                abnormalPhoto: "異常照片",
+                actions: "操作",
+                noDataTitle: "暫無異常數據",
+                noDataSub: "點擊右下角 + 按鈕新增異常記錄",
+                addRecordTitle: "新增異常記錄",
+                selectShift: "請選擇班別",
+                selectPerson: "請先選擇班別",
+                selectPersonDefault: "請選擇人員",
+                descLabel: "異常描述（可複選，按住 Ctrl 鍵點選）",
+                manageOptions: "管理選項",
+                save: "儲存",
+                times: "次",
+                records: "筆",
+                chartLabel: "異常次數",
+                filterPeriodAll: "全部期間",
+                filterPeriodYear: "年",
+                filterPeriodMonth: "月"
+            },
+            en: {
+                appTitle: "IPQC Abnormal Data Statistics",
+                loginTitle: "IPQC Statistics System",
+                selectRole: "Select Access Role",
+                loginViewer: "Enter as Viewer",
+                loginEditor: "Enter as Editor",
+                inputViewerPass: "Enter Viewer Password",
+                inputEditorPass: "Enter Editor Password",
+                confirm: "Confirm",
+                cancel: "Cancel",
+                changePassword: "Change Password",
+                filterHeader: "Filter Search",
+                shift: "Shift",
+                allShifts: "All Shifts",
+                year: "Year",
+                allYears: "All Years",
+                month: "Month",
+                allMonths: "All Months",
+                date: "Date",
+                allDates: "All Dates",
+                search: "Search",
+                reset: "Reset",
+                export: "Export CSV",
+                chartBlockTitle: "Shift Statistics Chart",
+                personBlockTitle: "Personnel Statistics",
+                descBlockTitle: "Defect Reason Statistics",
+                listBlockTitle: "Abnormal Data List",
+                totalPrefix: "Filtered Total: ",
+                noPersonData: "No personnel data available",
+                noDescData: "No defect reason data available",
+                seq: "No.",
+                abnormalDate: "Date",
+                abnormalShift: "Shift",
+                abnormalPerson: "Personnel",
+                abnormalDesc: "Description",
+                abnormalPhoto: "Photo",
+                actions: "Actions",
+                noDataTitle: "No Data Found",
+                noDataSub: "Click + at bottom right to add a record",
+                addRecordTitle: "Add Abnormal Record",
+                selectShift: "Select Shift",
+                selectPerson: "Please select shift first",
+                selectPersonDefault: "Select Personnel",
+                descLabel: "Description (Multi-select with Ctrl)",
+                manageOptions: "Manage Options",
+                save: "Save",
+                times: "times",
+                records: "records",
+                chartLabel: "Abnormal Count",
+                filterPeriodAll: "All Periods",
+                filterPeriodYear: "",
+                filterPeriodMonth: ""
+            }
+        };
+
+        // 月份英文縮寫
+        const monthNamesEn = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+        function translateDesc(desc) {
+            if (!desc) return '';
+            if (currentLang === 'zh') return desc;
+            const items = desc.split('、');
+            const translatedItems = items.map(item => {
+                const trimmed = item.trim();
+                return descriptionTranslations[trimmed] || trimmed;
+            });
+            return translatedItems.join(', ');
+        }
+
+        function toggleLanguage() {
+            currentLang = currentLang === 'zh' ? 'en' : 'zh';
+            localStorage.setItem('appLang', currentLang);
+            updateInterfaceLanguage();
+        }
+
+        function updateInterfaceLanguage() {
+            document.querySelectorAll('.langToggleBtnText').forEach(el => {
+                el.textContent = currentLang === 'zh' ? 'EN' : '中文';
+            });
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (translations[currentLang] && translations[currentLang][key]) {
+                    el.textContent = translations[currentLang][key];
+                }
+            });
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                const key = el.getAttribute('data-i18n-placeholder');
+                if (translations[currentLang] && translations[currentLang][key]) {
+                    el.placeholder = translations[currentLang][key];
+                }
+            });
+            initDateDisplay();
+            updateFilterPeriodBadges();
+            renderDescriptionSelectOptions();
+            if (currentData && currentData.length > 0) {
+                renderDataTable(currentData);
+                updateDataCountBadge(currentData.length);
+            } else if (currentData && currentData.length === 0) {
+                updateDataCountBadge(0);
+            }
+            if (shiftChartInstance) {
+                shiftChartInstance.update();
+            }
+        }
+
+        // ==================== 更新篩選期間標籤 ====================
+        function updateFilterPeriodBadges() {
+            const year = document.getElementById('filterYear').value;
+            const month = document.getElementById('filterMonth').value;
+            let text = '';
+            const isEn = currentLang === 'en';
+
+            if (year === 'all' && month === 'all') {
+                text = isEn ? translations.en.filterPeriodAll : translations.zh.filterPeriodAll;
+            } else if (year !== 'all' && month === 'all') {
+                text = isEn ? year : year + translations.zh.filterPeriodYear;
+            } else if (year === 'all' && month !== 'all') {
+                if (isEn) {
+                    text = monthNamesEn[parseInt(month) - 1] || month;
+                } else {
+                    text = month + translations.zh.filterPeriodMonth;
+                }
+            } else {
+                if (isEn) {
+                    text = (monthNamesEn[parseInt(month) - 1] || month) + ' ' + year;
+                } else {
+                    text = year + translations.zh.filterPeriodYear + month + translations.zh.filterPeriodMonth;
+                }
+            }
+
+            document.querySelectorAll('.filter-period-badge .fp-text').forEach(el => {
+                el.textContent = text;
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            updateInterfaceLanguage();
+        });
+
+        // ==================== 登入相關 ====================
+        function showViewerPasswordBox() {
+            hideAllPasswordBoxes();
+            document.getElementById('viewerPasswordBox').style.display = 'block';
+        }
+
+        function showEditorPasswordBox() {
+            hideAllPasswordBoxes();
+            document.getElementById('editorPasswordBox').style.display = 'block';
+        }
+
+        function hideAllPasswordBoxes() {
+            document.getElementById('viewerPasswordBox').style.display = 'none';
+            document.getElementById('editorPasswordBox').style.display = 'none';
+            document.getElementById('viewerPassword').value = '';
+            document.getElementById('editorPassword').value = '';
+        }
+
+        async function loginAsViewer() {
+            const password = document.getElementById('viewerPassword').value.trim();
+            if (!password) { showToast('warning', '請輸入密碼', '密碼不可空白'); return; }
+            try {
+                const response = await apiFetch(API_BASE + '?action=loginAsViewer', {
+                    method: 'POST',
+                    body: JSON.stringify({ password: password })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    editorToken = null;
+                    document.body.classList.add('viewer-mode');
+                    document.getElementById('loginOverlay').style.display = 'none';
+                    showToast('success', '檢視者登入成功', '歡迎檢視異常資料');
+                    initApp();
+                } else {
+                    showToast('error', '登入失敗', result.message || '密碼錯誤');
+                    document.getElementById('viewerPassword').value = '';
+                }
+            } catch (error) {
+                console.error('登入錯誤:', error);
+                showToast('error', '網路錯誤', '無法連接到伺服器');
+            }
+        }
+
+        async function loginAsEditor() {
+            const password = document.getElementById('editorPassword').value.trim();
+            if (!password) { showToast('warning', '請輸入密碼', '密碼不可空白'); return; }
+            try {
+                const response = await apiFetch(API_BASE + '?action=loginAsEditor', {
+                    method: 'POST',
+                    body: JSON.stringify({ password: password })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    editorToken = result.token;
+                    document.body.classList.remove('viewer-mode');
+                    document.getElementById('loginOverlay').style.display = 'none';
+                    showToast('success', '登入成功', '歡迎，編輯者');
+                    initApp();
+                } else {
+                    showToast('error', '登入失敗', result.message || '密碼錯誤');
+                    document.getElementById('editorPassword').value = '';
+                }
+            } catch (error) {
+                console.error('登入錯誤:', error);
+                showToast('error', '網路錯誤', '無法連接到伺服器');
+            }
+        }
+
+        function openChangePasswordModal() {
+            document.getElementById('oldPassword').value = '';
+            document.getElementById('newPassword').value = '';
+            document.getElementById('confirmNewPassword').value = '';
+            new bootstrap.Modal(document.getElementById('changePasswordModal')).show();
+        }
+
+        async function submitChangePassword() {
+            const type = document.getElementById('passwordTypeSelect').value;
+            const oldPassword = document.getElementById('oldPassword').value.trim();
+            const newPassword = document.getElementById('newPassword').value.trim();
+            const confirmNewPassword = document.getElementById('confirmNewPassword').value.trim();
+            if (!oldPassword || !newPassword || !confirmNewPassword) {
+                showToast('warning', '資料不完整', '請填寫所有欄位');
+                return;
+            }
+            if (newPassword !== confirmNewPassword) {
+                showToast('warning', '密碼不一致', '新密碼與確認密碼不符');
+                return;
+            }
+            if (newPassword.length < 4) {
+                showToast('warning', '密碼太短', '新密碼至少需要4位');
+                return;
+            }
+            try {
+                const url = API_BASE + '?action=changePassword&token=' + encodeURIComponent(editorToken || '');
+                const response = await apiFetch(url, {
+                    method: 'POST',
+                    body: JSON.stringify({ type: type, oldPassword: oldPassword, newPassword: newPassword })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    showToast('success', '修改成功', '密碼已更新');
+                    bootstrap.Modal.getInstance(document.getElementById('changePasswordModal')).hide();
+                    if (type === 'editor') {
+                        editorToken = null;
+                        document.body.classList.add('viewer-mode');
+                        document.getElementById('loginOverlay').style.display = 'flex';
+                    }
+                } else {
+                    showToast('error', '修改失敗', result.message || '請重試');
+                }
+            } catch (error) {
+                console.error('修改密碼錯誤:', error);
+                showToast('error', '網路錯誤', '無法連接到伺服器');
+            }
+        }
+
+        // ==================== 初始化應用 ====================
+        async function initApp() {
+            updateInterfaceLanguage();
+            initYearFilter();
+            initDateFilter();
+            initPersonDropdown();
+            initInputDefaults();
+            await loadDescriptionOptions();
+            const now = new Date();
+            document.getElementById('filterYear').value = now.getFullYear();
+            document.getElementById('filterMonth').value = now.getMonth() + 1;
+            updateFilterPeriodBadges();
+            loadDataAndStats();
+            initDashboardDragDrop();
+        }
+
+        function initDateDisplay() {
+            const now = new Date();
+            const locale = currentLang === 'en' ? 'en-US' : 'zh-TW';
+            const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
+            document.getElementById('currentDateDisplay').innerHTML =
+                '<i class="fas fa-calendar-alt me-1"></i>' + now.toLocaleDateString(locale, options);
+        }
+
+        function initYearFilter() {
+            const select = document.getElementById('filterYear');
+            select.innerHTML = `<option value="all">${translations[currentLang].allYears}</option>`;
+            const now = new Date();
+            [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1].forEach(y => {
+                const option = document.createElement('option');
+                option.value = y;
+                option.textContent = y + (currentLang === 'zh' ? '年' : '');
+                select.appendChild(option);
+            });
+        }
+
+        // 依資料中的實際年份重建年份篩選（資料載入後呼叫）
+        function refreshYearFilter() {
+            const select = document.getElementById('filterYear');
+            const current = select.value;
+            const years = new Set();
+            if (currentData && currentData.length) {
+                currentData.forEach(r => {
+                    if (r.date) years.add(r.date.slice(0, 4));
+                });
+            }
+            if (!years.size) {
+                const y = new Date().getFullYear();
+                years.add(String(y));
+                years.add(String(y + 1));
+            }
+            let html = `<option value="all">${translations[currentLang].allYears}</option>`;
+            [...years].sort().reverse().forEach(y => {
+                html += `<option value="${y}">${y}${currentLang === 'zh' ? '年' : ''}</option>`;
+            });
+            select.innerHTML = html;
+            select.value = years.has(current) ? current : 'all';
+        }
+
+        function initDateFilter() {
+            const select = document.getElementById('filterDate');
+            select.innerHTML = `<option value="all">${translations[currentLang].allDates}</option>`;
+            for (let d = 1; d <= 31; d++) {
+                const option = document.createElement('option');
+                option.value = d;
+                option.textContent = d + (currentLang === 'zh' ? '日' : '');
+                select.appendChild(option);
+            }
+        }
+
+        function initPersonDropdown() {
+            document.getElementById('inputPerson').innerHTML =
+                `<option value="">${translations[currentLang].selectPerson}</option>`;
+        }
+
+        const S1_PERSONNEL = [
+            "方慎之", "陳泰安", "蔡南嘉", "李珮菁", "朱建穎", "王泳淇", "吳峻霖", "黃詠綺",
+            "蘭狄", "凱文", "勞倫司", "安東尼", "明華", "艾麥倫", "邱立斯", "拉特", "羅內爾", "艾佛森"
+        ];
+        const S2_PERSONNEL = [
+            "黃正忠", "張韶眞", "陳宥庠", "黃威翔", "羅翊禎", "黃文靖", "蔡易良", "吳奇玲",
+            "詹姆士", "達力", "山博", "羅傑", "達路", "童氏蓮", "羅德", "達布", "安吉", "羅蘭多"
+        ];
+        const S3_PERSONNEL = [
+            "陳文全", "吳國隆", "李茂玄", "葉秀芬", "王俊智", "吳慧如", "黃筱珊", "吳明珠", "蘇炫元",
+            "托弗", "杰倫", "艾諾", "吳氏莊", "納撒", "格林", "喬司華", "喬丹", "吉姆"
+        ];
+        const S4_PERSONNEL = [
+            "陳喬志", "楊代億", "廖曉彤", "蔡靜儀", "賴建亦", "施榮傑", "陰其德", "黃譯鋒", "楊雅婷", "羅啟倫",
+            "埃爾默", "拉斯特", "雷伊", "漢斯", "達利斯", "甘達", "特拉多", "達爾文"
+        ];
+        const personShiftMap = {};
+        S1_PERSONNEL.forEach(p => personShiftMap[p] = 'S1');
+        S2_PERSONNEL.forEach(p => personShiftMap[p] = 'S2');
+        S3_PERSONNEL.forEach(p => personShiftMap[p] = 'S3');
+        S4_PERSONNEL.forEach(p => personShiftMap[p] = 'S4');
+        const S1_S3_PERSONNEL = [...S1_PERSONNEL, ...S3_PERSONNEL];
+        const S2_S4_PERSONNEL = [...S2_PERSONNEL, ...S4_PERSONNEL];
+
+        function updatePersonOptions() {
+            const shift = document.getElementById('inputShift').value;
+            const select = document.getElementById('inputPerson');
+            let list = [];
+            if (shift === 'S1' || shift === 'S3') list = S1_S3_PERSONNEL;
+            else if (shift === 'S2' || shift === 'S4') list = S2_S4_PERSONNEL;
+            else {
+                select.innerHTML = `<option value="">${translations[currentLang].selectPerson}</option>`;
+                return;
+            }
+            let html = `<option value="">${translations[currentLang].selectPersonDefault}</option>`;
+            list.forEach(name => html += `<option value="${name}">${name}</option>`);
+            select.innerHTML = html;
+        }
+
+        function initInputDefaults() {
+            const now = new Date();
+            document.getElementById('inputDate').value = now.toISOString().split('T')[0];
+            document.getElementById('inputShift').value = '';
+            updatePersonOptions();
+            document.getElementById('inputDescription').selectedIndex = -1;
+            photoBase64 = '';
+            document.getElementById('photoPreviewContainer').style.display = 'none';
+            document.getElementById('inputPhoto').value = '';
+        }
+
+        // ==================== 異常描述選項管理 ====================
+        async function loadDescriptionOptions() {
+            try {
+                const response = await apiFetch(API_BASE + '?action=getDescriptionOptions');
+                const result = await response.json();
+                if (result.success && Array.isArray(result.options)) {
+                    descriptionOptions = result.options;
+                } else {
+                    descriptionOptions = [];
+                }
+            } catch (error) {
+                console.error('載入描述選項錯誤:', error);
+                descriptionOptions = [];
+            }
+            renderDescriptionSelectOptions();
+        }
+
+        function renderDescriptionSelectOptions() {
+            const select = document.getElementById('inputDescription');
+            select.innerHTML = '';
+            descriptionOptions.forEach(desc => {
+                const option = document.createElement('option');
+                option.value = desc;
+                option.textContent = translateDesc(desc);
+                select.appendChild(option);
+            });
+        }
+
+        function openDescriptionOptionsModal() {
+            renderDescriptionOptionsList();
+            new bootstrap.Modal(document.getElementById('descriptionOptionsModal')).show();
+        }
+
+        function renderDescriptionOptionsList() {
+            const container = document.getElementById('descriptionOptionsList');
+            if (!descriptionOptions.length) {
+                container.innerHTML = '<div class="empty-state py-3"><i class="fas fa-tags"></i><p>尚無選項</p></div>';
+                return;
+            }
+            let html = '';
+            descriptionOptions.forEach((opt, index) => {
+                html += `
+                    <div class="option-item" data-index="${index}">
+                        <input type="text" class="form-control" value="${escapeHtml(opt)}" id="optionInput_${index}">
+                        <button class="btn btn-sm btn-custom-outline" onclick="updateDescriptionOption(${index})" title="儲存修改">
+                            <i class="fas fa-save"></i>
+                        </button>
+                        <button class="btn btn-sm btn-custom-danger" onclick="deleteDescriptionOption(${index})" title="刪除">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function buildUrlWithToken(action, extraParams = {}) {
+            const params = new URLSearchParams({ action: action, ...extraParams });
+            if (editorToken) params.append('token', editorToken);
+            return API_BASE + '?' + params.toString();
+        }
+
+        async function addDescriptionOption() {
+            const input = document.getElementById('newOptionInput');
+            const newOpt = input.value.trim();
+            if (!newOpt) { showToast('warning', '輸入錯誤', '請輸入新選項名稱'); return; }
+            if (descriptionOptions.includes(newOpt)) {
+                showToast('warning', '重複選項', '此選項已存在');
+                return;
+            }
+            try {
+                const response = await apiFetch(buildUrlWithToken('addDescriptionOption'), {
+                    method: 'POST',
+                    body: JSON.stringify({ option: newOpt })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    showToast('success', '新增成功', `已新增選項「${newOpt}」`);
+                    input.value = '';
+                    await loadDescriptionOptions();
+                    renderDescriptionOptionsList();
+                } else {
+                    showToast('error', '新增失敗', result.message || '請重試');
+                }
+            } catch (error) {
+                console.error('新增選項錯誤:', error);
+                showToast('error', '網路錯誤', '無法連接到伺服器');
+            }
+        }
+
+        async function updateDescriptionOption(index) {
+            const input = document.getElementById(`optionInput_${index}`);
+            const newOpt = input.value.trim();
+            const oldOpt = descriptionOptions[index];
+            if (!newOpt) { showToast('warning', '輸入錯誤', '選項名稱不可空白'); return; }
+            if (newOpt === oldOpt) return;
+            if (descriptionOptions.includes(newOpt)) {
+                showToast('warning', '重複選項', '此選項已存在');
+                return;
+            }
+            try {
+                const response = await apiFetch(buildUrlWithToken('updateDescriptionOption'), {
+                    method: 'POST',
+                    body: JSON.stringify({ oldOption: oldOpt, newOption: newOpt })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    showToast('success', '修改成功', `已更新為「${newOpt}」`);
+                    await loadDescriptionOptions();
+                    renderDescriptionOptionsList();
+                } else {
+                    showToast('error', '修改失敗', result.message || '請重試');
+                }
+            } catch (error) {
+                console.error('修改選項錯誤:', error);
+                showToast('error', '網路錯誤', '無法連接到伺服器');
+            }
+        }
+
+        async function deleteDescriptionOption(index) {
+            const opt = descriptionOptions[index];
+            if (!confirm(`確定要刪除選項「${opt}」嗎？`)) return;
+            try {
+                const response = await apiFetch(buildUrlWithToken('deleteDescriptionOption'), {
+                    method: 'POST',
+                    body: JSON.stringify({ option: opt })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    showToast('success', '刪除成功', `已刪除選項「${opt}」`);
+                    await loadDescriptionOptions();
+                    renderDescriptionOptionsList();
+                } else {
+                    showToast('error', '刪除失敗', result.message || '請重試');
+                }
+            } catch (error) {
+                console.error('刪除選項錯誤:', error);
+                showToast('error', '網路錯誤', '無法連接到伺服器');
+            }
+        }
+
+        // ==================== 資料載入與統計 ====================
+        function getFilterParams() {
+            return {
+                shift: document.getElementById('filterShift').value,
+                year: document.getElementById('filterYear').value,
+                month: document.getElementById('filterMonth').value,
+                date: document.getElementById('filterDate').value
+            };
+        }
+
+        async function loadDataAndStats() {
+            showLoading(true);
+            updateFilterPeriodBadges();
+            const params = getFilterParams();
+            try {
+                const [dataResult, statsResult] = await Promise.all([
+                    fetchData(params),
+                    fetchStats(params)
+                ]);
+                if (dataResult.success) {
+                    currentData = dataResult.data;
+                    renderDataTable(currentData);
+                    updateDataCountBadge(currentData.length);
+                    refreshYearFilter();
+                } else {
+                    showToast('error', '載入失敗', dataResult.message || '未知錯誤');
+                    currentData = [];
+                    renderDataTable([]);
+                    updateDataCountBadge(0);
+                }
+                if (statsResult.success) {
+                    updateStatsDisplay(statsResult.stats);
+                }
+            } catch (error) {
+                console.error('載入數據錯誤:', error);
+                showToast('error', '網路錯誤', '無法連接到伺服器，請檢查 Supabase 設定');
+                currentData = [];
+                renderDataTable([]);
+                updateDataCountBadge(0);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function fetchData(params) {
+            const queryString = new URLSearchParams({
+                action: 'getData',
+                shift: params.shift,
+                year: params.year,
+                month: params.month,
+                date: params.date
+            }).toString();
+            const response = await apiFetch(API_BASE + '?' + queryString);
+            return await response.json();
+        }
+
+        async function fetchStats(params) {
+            const queryString = new URLSearchParams({
+                action: 'getStats',
+                shift: params.shift,
+                year: params.year,
+                month: params.month,
+                date: params.date
+            }).toString();
+            const response = await apiFetch(API_BASE + '?' + queryString);
+            return await response.json();
+        }
+
+        function updateStatsDisplay(stats) {
+            document.getElementById('chartTotalBadge').textContent =
+                translations[currentLang].totalPrefix + (stats.total || 0);
+            updateShiftChart(stats.byShift || { S1: 0, S2: 0, S3: 0, S4: 0 });
+            updatePersonStatsList(stats.byPerson || {});
+            updateDescriptionStatsList(stats.byDescription || {});
+        }
+
+        function updateShiftChart(byShift) {
+            const ctx = document.getElementById('shiftChart').getContext('2d');
+            if (shiftChartInstance) shiftChartInstance.destroy();
+            shiftChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['S1', 'S2', 'S3', 'S4'],
+                    datasets: [{
+                        label: translations[currentLang].chartLabel,
+                        data: [byShift.S1 || 0, byShift.S2 || 0, byShift.S3 || 0, byShift.S4 || 0],
+                        backgroundColor: ['rgba(240,147,251,0.85)', 'rgba(79,172,254,0.85)',
+                            'rgba(67,233,123,0.85)', 'rgba(250,112,154,0.85)'
+                        ],
+                        borderColor: ['rgba(240,147,251,1)', 'rgba(79,172,254,1)',
+                            'rgba(67,233,123,1)', 'rgba(250,112,154,1)'
+                        ],
+                        borderWidth: 2,
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                    },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { stepSize: 1 } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        function updatePersonStatsList(byPerson) {
+            const container = document.getElementById('personStatsContainer');
+            const persons = Object.entries(byPerson).sort((a, b) => b[1] - a[1]);
+            if (!persons.length) {
+                container.innerHTML =
+                    `<div class="empty-state py-3"><i class="fas fa-user-slash"></i><p class="mb-0">${translations[currentLang].noPersonData}</p></div>`;
+                return;
+            }
+            let html = '';
+            persons.forEach(([name, count]) => {
+                const shift = personShiftMap[name] || '';
+                const shiftText = shift ? `(${shift})` : '';
+                html += `<div class="person-stat-item">
+                            <span class="person-stat-name"><i class="fas fa-user-circle me-2" style="color:#1a73e8;"></i>${escapeHtml(name)}${shiftText}</span>
+                            <span class="person-stat-count">${count} ${translations[currentLang].times}</span>
+                        </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        function updateDescriptionStatsList(byDescription) {
+            const container = document.getElementById('descriptionStatsContainer');
+            const descriptions = Object.entries(byDescription).sort((a, b) => b[1] - a[1]);
+            if (!descriptions.length) {
+                container.innerHTML =
+                    `<div class="empty-state py-3"><i class="fas fa-chart-pie"></i><p class="mb-0">${translations[currentLang].noDescData}</p></div>`;
+                return;
+            }
+            let html = '';
+            descriptions.forEach(([desc, count]) => {
+                const translatedDescName = translateDesc(desc);
+                html += `<div class="description-stat-item">
+                            <span class="description-stat-name"><i class="fas fa-tag me-2" style="color:#1a73e8;"></i>${escapeHtml(translatedDescName)}</span>
+                            <span class="description-stat-count">${count} ${translations[currentLang].times}</span>
+                        </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        function renderDataTable(data) {
+            const tableBody = document.getElementById('dataTableBody');
+            const emptyState = document.getElementById('emptyState');
+            const tableWrapper = document.getElementById('dataTableWrapper');
+            if (!data || data.length === 0) {
+                tableBody.innerHTML = '';
+                emptyState.style.display = 'block';
+                tableWrapper.style.display = 'block';
+                return;
+            }
+            emptyState.style.display = 'none';
+            tableWrapper.style.display = 'block';
+            let html = '';
+            data.forEach((item, index) => {
+                const shiftClass = 'badge-shift-' + escapeHtml(item.shift);
+                const hasPhoto = item.photo_url && item.photo_url.trim() !== '';
+                const displayDate = item.date;
+                const personShift = personShiftMap[item.person] || '';
+                const isOvertime = personShift && personShift !== item.shift;
+                const personStyle = isOvertime ? 'style="color:red; font-weight:600;"' :
+                    'style="font-weight:600;"';
+                const translatedDescription = translateDesc(item.description);
+                html += `<tr>
+                            <td class="text-center" style="font-weight:600;color:#888;">${index + 1}</td>
+                            <td style="white-space:nowrap;font-weight:500;"><i class="fas fa-calendar-day me-1" style="color:#1a73e8;"></i>${escapeHtml(displayDate)}</td>
+                            <td><span class="badge-shift ${shiftClass}">${escapeHtml(item.shift)}</span></td>
+                            <td ${personStyle}><i class="fas fa-user me-1" style="color:#555;"></i>${escapeHtml(item.person)}</td>
+                            <td><span class="description-text" title="${escapeHtml(translatedDescription)}">${escapeHtml(translatedDescription)}</span></td>
+                            <td class="text-center">${hasPhoto ? `<img src="${escapeHtml(item.photo_url)}" class="photo-thumb" alt="異常照片" onclick="viewPhoto('${escapeHtml(item.photo_url)}')" loading="lazy">` : `<div class="photo-placeholder"><i class="fas fa-image"></i></div>`}</td>
+                            <td class="text-center editor-only"><button class="btn btn-sm btn-outline-danger" onclick="deleteRecord('${escapeHtml(item.id)}')" title="刪除記錄" style="border-radius:6px;padding:4px 10px;"><i class="fas fa-trash-alt"></i></button></td>
+                        </tr>`;
+            });
+            tableBody.innerHTML = html;
+        }
+
+        function updateDataCountBadge(count) {
+            document.getElementById('dataCountBadge').textContent = count + ' ' + translations[currentLang].records;
+        }
+
+        function showLoading(show) {
+            const spinner = document.getElementById('loadingSpinner');
+            const tableWrapper = document.getElementById('dataTableWrapper');
+            if (show) {
+                spinner.style.display = 'flex';
+                tableWrapper.style.display = 'none';
+            } else {
+                spinner.style.display = 'none';
+                if (currentData && currentData.length > 0) tableWrapper.style.display = 'block';
+                else if (currentData && currentData.length === 0) tableWrapper.style.display = 'block';
+            }
+        }
+
+        function openAddModal() {
+            initInputDefaults();
+            new bootstrap.Modal(document.getElementById('addModal')).show();
+        }
+
+        function previewPhoto(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            // 注意：照片會以 base64 經後端函式上傳，上限設 6MB（超過容易失敗）
+            if (file.size > 6 * 1024 * 1024) {
+                showToast('error', '文件過大', '照片大小不能超過6MB');
+                document.getElementById('inputPhoto').value = '';
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                photoBase64 = e.target.result;
+                document.getElementById('photoPreview').src = photoBase64;
+                document.getElementById('photoPreviewContainer').style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function removePhoto() {
+            photoBase64 = '';
+            document.getElementById('inputPhoto').value = '';
+            document.getElementById('photoPreviewContainer').style.display = 'none';
+            document.getElementById('photoPreview').src = '';
+        }
+
+        async function submitData() {
+            const date = document.getElementById('inputDate').value;
+            const shift = document.getElementById('inputShift').value;
+            const person = document.getElementById('inputPerson').value;
+            const descSelect = document.getElementById('inputDescription');
+            const selectedDescriptions = Array.from(descSelect.selectedOptions).map(opt => opt.value);
+            const description = selectedDescriptions.join('、');
+            if (!date || !shift || !person || selectedDescriptions.length === 0) {
+                showToast('warning', '資料不完整', '請填寫所有必填欄位（異常描述至少選擇一項）');
+                return;
+            }
+            const saveBtn = document.querySelector('#addModal .btn-custom-primary');
+            const originalText = saveBtn.innerHTML;
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> 儲存中...';
+            try {
+                let finalPhotoUrl = '';
+                if (photoBase64) {
+                    const uploadResult = await uploadPhotoToAPI(photoBase64);
+                    if (uploadResult.success) {
+                        finalPhotoUrl = uploadResult.photoUrl;
+                    } else {
+                        showToast('error', '照片上傳失敗', uploadResult.message || '請重試');
+                        saveBtn.disabled = false;
+                        saveBtn.innerHTML = originalText;
+                        return;
+                    }
+                }
+                const dataPayload = { date, shift, person, description, photoUrl: finalPhotoUrl };
+                const addResult = await addDataToAPI(dataPayload);
+                if (addResult.success) {
+                    showToast('success', '新增成功', '異常記錄已保存');
+                    bootstrap.Modal.getInstance(document.getElementById('addModal')).hide();
+                    initInputDefaults();
+                    await loadDataAndStats();
+                } else {
+                    showToast('error', '新增失敗', addResult.message || '請重試');
+                }
+            } catch (error) {
+                console.error('提交數據錯誤:', error);
+                showToast('error', '網路錯誤', '無法連接到伺服器');
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = originalText;
+            }
+        }
+
+        async function uploadPhotoToAPI(base64Data) {
+            try {
+                const response = await apiFetch(buildUrlWithToken('uploadPhoto'), {
+                    method: 'POST',
+                    body: JSON.stringify({ base64: base64Data, fileName: 'photo_' + new Date().getTime() +
+                            '.jpg', mimeType: base64Data.split(';')[0].split(':')[1] || 'image/jpeg' })
+                });
+                return await response.json();
+            } catch (error) {
+                console.error('上傳照片錯誤:', error);
+                return { success: false, message: '網路錯誤：' + error.message };
+            }
+        }
+
+        async function addDataToAPI(data) {
+            try {
+                const response = await apiFetch(buildUrlWithToken('addData'), {
+                    method: 'POST',
+                    body: JSON.stringify(data)
+                });
+                return await response.json();
+            } catch (error) {
+                console.error('添加數據錯誤:', error);
+                return { success: false, message: '網路錯誤：' + error.message };
+            }
+        }
+
+        async function deleteRecord(id) {
+            if (!confirm('確定要刪除這筆異常記錄嗎？此操作無法復原。')) return;
+            try {
+                const response = await apiFetch(buildUrlWithToken('deleteData', { id: id }), {
+                    method: 'POST'
+                });
+                const result = await response.json();
+                if (result.success) {
+                    showToast('success', '刪除成功', '記錄已刪除');
+                    await loadDataAndStats();
+                } else {
+                    showToast('error', '刪除失敗', result.message || '請重試');
+                }
+            } catch (error) {
+                console.error('刪除記錄錯誤:', error);
+                showToast('error', '網路錯誤', '無法連接到伺服器');
+            }
+        }
+
+        function viewPhoto(url) {
+            document.getElementById('photoViewImage').src = url.replace('w1000', 'w2000');
+            new bootstrap.Modal(document.getElementById('photoViewModal')).show();
+        }
+
+        function exportCSV() {
+            if (!currentData || currentData.length === 0) {
+                showToast('warning', '無數據', '沒有可匯出的數據');
+                return;
+            }
+            const isEn = currentLang === 'en';
+            const headers = isEn ?
+                ['Seq', 'Date', 'Shift', 'Personnel', 'Description', 'Photo URL'] :
+                ['序號', '異常日期', '異常班別', '異常人員', '異常描述', '照片URL'];
+            const rows = currentData.map((item, index) => [
+                index + 1,
+                item.date,
+                item.shift,
+                item.person,
+                translateDesc(item.description),
+                item.photo_url || ''
+            ]);
+            const csvContent = [headers.join(','), ...rows.map(row => row.map(cell => '"' + String(cell).replace(
+                /"/g, '""') + '"').join(','))].join('\n');
+            const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            const params = getFilterParams();
+            link.download =
+                `IPQC異常資料_${params.year || '全部'}_${params.month || '全部'}_${new Date().getTime()}.csv`;
+            link.click();
+            URL.revokeObjectURL(link.href);
+            showToast('success', '匯出成功', 'CSV檔案已下載');
+        }
+
+        function resetFilters() {
+            document.getElementById('filterShift').value = 'all';
+            const now = new Date();
+            document.getElementById('filterYear').value = now.getFullYear();
+            document.getElementById('filterMonth').value = now.getMonth() + 1;
+            document.getElementById('filterDate').value = 'all';
+            updateFilterPeriodBadges();
+            loadDataAndStats();
+        }
+
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        function showToast(type, title, message) {
+            const container = document.getElementById('toastContainer');
+            const iconMap = { success: 'fa-check-circle', error: 'fa-exclamation-circle',
+                warning: 'fa-exclamation-triangle', info: 'fa-info-circle' };
+            const colorMap = { success: '#34a853', error: '#ea4335', warning: '#fbbc04', info: '#1a73e8' };
+            const toastId = 'toast_' + new Date().getTime();
+            const icon = iconMap[type] || iconMap.info;
+            const color = colorMap[type] || colorMap.info;
+            const toastHtml = `
+                <div id="${toastId}" class="toast toast-custom" role="alert" style="border-left: 5px solid ${color};">
+                    <div class="toast-header" style="background: #fff;">
+                        <i class="fas ${icon} me-2" style="color: ${color}; font-size: 1.2rem;"></i>
+                        <strong class="me-auto" style="color: #333;">${escapeHtml(title)}</strong>
+                        <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+                    </div>
+                    <div class="toast-body" style="background: #fff; color: #555;">${escapeHtml(message)}</div>
+                </div>`;
+            container.insertAdjacentHTML('beforeend', toastHtml);
+            const toastEl = document.getElementById(toastId);
+            const toast = new bootstrap.Toast(toastEl, { delay: 3500 });
+            toast.show();
+            toastEl.addEventListener('hidden.bs.toast', function() { toastEl.remove(); });
+        }
+
+        // ==================== 區塊拖曳排序功能 ====================
+        function initDashboardDragDrop() {
+            const container = document.getElementById('dashboardContainer');
+            const blocks = container.querySelectorAll('.dashboard-block');
+            let draggedBlock = null;
+            const savedOrder = JSON.parse(localStorage.getItem('dashboardOrder') || '[]');
+            if (savedOrder.length === blocks.length) {
+                savedOrder.forEach(blockId => {
+                    const block = container.querySelector(`[data-block="${blockId}"]`);
+                    if (block) container.appendChild(block);
+                });
+            }
+            blocks.forEach(block => {
+                const handle = block.querySelector('.drag-handle');
+                handle.addEventListener('mousedown', () => { block.draggable = true; });
+                handle.addEventListener('mouseup', () => { block.draggable = false; });
+                handle.addEventListener('touchstart', () => { block.draggable = true; }, { passive: true });
+                handle.addEventListener('touchend', () => { block.draggable = false; });
+                block.addEventListener('dragstart', (e) => {
+                    draggedBlock = block;
+                    block.classList.add('dragging');
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', block.dataset.block);
+                });
+                block.addEventListener('dragend', () => {
+                    block.classList.remove('dragging');
+                    draggedBlock = null;
+                    saveDashboardOrder();
+                });
+                block.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    block.classList.add('drag-over');
+                });
+                block.addEventListener('dragleave', () => {
+                    block.classList.remove('drag-over');
+                });
+                block.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    block.classList.remove('drag-over');
+                    if (draggedBlock && draggedBlock !== block) {
+                        const rect = block.getBoundingClientRect();
+                        const after = e.clientY > rect.top + rect.height / 2;
+                        if (after) {
+                            block.parentNode.insertBefore(draggedBlock, block.nextSibling);
+                        } else {
+                            block.parentNode.insertBefore(draggedBlock, block);
+                        }
+                    }
+                });
+            });
+
+            function saveDashboardOrder() {
+                const orderedBlocks = container.querySelectorAll('.dashboard-block');
+                const order = Array.from(orderedBlocks).map(block => block.dataset.block);
+                localStorage.setItem('dashboardOrder', JSON.stringify(order));
+            }
+        }
+
+        // ==================== 監聽篩選變更以即時更新標籤 ====================
+        document.getElementById('filterYear').addEventListener('change', updateFilterPeriodBadges);
+        document.getElementById('filterMonth').addEventListener('change', updateFilterPeriodBadges);
+    </script>
+<!-- === 浮動返回首頁按鈕 === -->
+<a href="../" class="back-home-btn">🏠 返回首頁</a>
+
+<style>
+  .back-home-btn {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 99999;
+    background: rgba(15, 23, 42, 0.9); /* 深色半透明背景 */
+    color: #ffffff;
+    padding: 10px 16px;
+    border-radius: 30px;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    backdrop-filter: blur(4px); /* 模糊背景效果 */
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+  }
+
+  /* 手機按壓時的縮放回饋 */
+  .back-home-btn:active {
+    transform: scale(0.92);
+    background: #0f172a;
+  }
+</style>
+</body>
+</html>

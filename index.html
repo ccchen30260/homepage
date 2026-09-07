@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>我的應用首頁</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #f8fafc;
+      color: #0f172a;
+      padding: 24px 16px;
+      min-height: 100vh;
+    }
+    .container { max-width: 500px; margin: 0 auto; }
+    
+    header { text-align: center; margin-bottom: 24px; }
+    header h1 { font-size: 22px; font-weight: 700; color: #0f172a; }
+    header p { font-size: 14px; color: #64748b; margin-top: 6px; }
+
+    /* 手機大卡片式選單 */
+    .grid { display: flex; flex-direction: column; gap: 14px; }
+    .card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #ffffff;
+      padding: 20px;
+      border-radius: 16px;
+      text-decoration: none;
+      color: inherit;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      border: 1px solid #e2e8f0;
+      transition: transform 0.15s, background-color 0.15s;
+    }
+    /* 手機按壓回饋效果 */
+    .card:active { transform: scale(0.98); background-color: #f1f5f9; }
+
+    .card-content h2 { font-size: 17px; font-weight: 600; color: #1e293b; margin-bottom: 4px; }
+    .card-content p { font-size: 13px; color: #64748b; }
+    .arrow { font-size: 18px; color: #0284c7; font-weight: bold; }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <h1>捲繞工作站</h1>
+          </header>
+
+    <div class="grid">
+      <a href="./project1/" class="card">
+        <div class="card-content">
+          <h2>班表</h2>
+          
+        </div>
+        <div class="arrow">➔</div>
+      </a>
+
+      <a href="./project2/" class="card">
+        <div class="card-content">
+          <h2>IPQC異常統計</h2>
+                 </div>
+        <div class="arrow">➔</div>
+      </a>
+
+      <a href="./project3/" class="card">
+        <div class="card-content">
+          <h2>教育訓練及宣導事項</h2>
+          
+        </div>
+        <div class="arrow">➔</div>
+      </a>
+
+      <a href="./project4/" class="card">
+        <div class="card-content">
+          <h2>工作任務清單</h2>
+          
+        </div>
+        <div class="arrow">➔</div>
+      </a>
+
+    </div>
+  </div>
+
+</body>
+</html>

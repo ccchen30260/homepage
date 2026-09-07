@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>任務清單 · iOS 風格</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --ios-bg: #f2f2f7;
+            --ios-card: #ffffff;
+            --ios-text: #1c1c1e;
+            --ios-blue: #007aff;
+            --ios-green: #34c759;
+            --ios-red: #ff3b30;
+            --ios-orange: #ff9500;
+            --ios-indigo: #5856d6;
+            --ios-gray: #8e8e93;
+            --ios-light-gray: #c7c7cc;
+            --ios-separator: #e5e5ea;
+            --ios-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            --ios-radius: 12px;
+            --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        [data-shift="night"] {
+            --ios-bg: #1c1c1e;
+            --ios-card: #2c2c2e;
+            --ios-text: #ffffff;
+            --ios-blue: #0a84ff;
+            --ios-green: #30d158;
+            --ios-red: #ff453a;
+            --ios-orange: #ff9f0a;
+            --ios-indigo: #5e5ce6;
+            --ios-gray: #98989d;
+            --ios-light-gray: #48484a;
+            --ios-separator: #38383a;
+            --ios-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--ios-bg);
+            color: var(--ios-text);
+            min-height: 100vh;
+            transition: background var(--transition), color var(--transition);
+            padding-bottom: 80px;
+            -webkit-font-smoothing: antialiased;
+        }
+        .container { max-width: 500px; margin: 0 auto; padding: 0 16px; }
+
+        /* 全螢幕載入動畫 */
+        .loading-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.25);
+            backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 999; opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+        }
+        .loading-overlay.show { opacity: 1; pointer-events: auto; }
+        .spinner {
+            width: 42px; height: 42px; border: 4px solid rgba(255,255,255,0.3);
+            border-top: 4px solid var(--ios-blue); border-radius: 50%;
+            animation: spin 0.8s linear infinite; margin-bottom: 12px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .loading-text { color: #fff; font-size: 15px; font-weight: 600; text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+
+        /* 導航 */
+        .nav-bar { padding: 16px 0 8px; display: flex; justify-content: space-between; align-items: center; }
+        .nav-bar h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; color: var(--ios-text); }
+        .date-display { font-size: 14px; color: var(--ios-gray); font-weight: 500; margin-top: 2px; }
+
+        /* 分段控件 */
+        .segmented-control { display: flex; background: var(--ios-card); border-radius: 10px; padding: 2px; margin: 12px 0 20px; box-shadow: var(--ios-shadow); position: relative; overflow: hidden; }
+        .segment-btn { flex: 1; padding: 10px 0; text-align: center; font-size: 15px; font-weight: 600; color: var(--ios-gray); cursor: pointer; border-radius: 8px; transition: all 0.3s; user-select: none; position: relative; z-index: 1; }
+        .segment-btn.active { background: var(--ios-bg); color: var(--ios-blue); box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+        [data-shift="night"] .segment-btn.active { background: #3a3a3c; }
+
+        /* 視圖切換 */
+        .view-toggle { display: flex; gap: 8px; margin-bottom: 16px; }
+        .view-btn { flex: 1; padding: 8px 0; text-align: center; font-size: 14px; font-weight: 600; background: var(--ios-card); border-radius: 8px; color: var(--ios-gray); cursor: pointer; box-shadow: var(--ios-shadow); transition: all 0.2s; user-select: none; }
+        .view-btn.active { background: var(--ios-blue); color: #fff; box-shadow: 0 2px 8px rgba(0,122,255,0.3); }
+
+        /* 進度卡片 */
+        .progress-card { background: var(--ios-card); border-radius: var(--ios-radius); padding: 18px 20px; box-shadow: var(--ios-shadow); margin-bottom: 16px; transition: all var(--transition); }
+        .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .progress-label { font-size: 15px; font-weight: 600; color: var(--ios-gray); }
+        .progress-percent { font-size: 22px; font-weight: 700; color: var(--ios-blue); }
+        .progress-percent.complete { color: var(--ios-green); }
+        .progress-bar-track { width: 100%; height: 6px; background: #e9e9eb; border-radius: 3px; overflow: hidden; margin-bottom: 8px; }
+        [data-shift="night"] .progress-bar-track { background: #48484a; }
+        .progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--ios-blue), var(--ios-green)); border-radius: 3px; transition: width 0.4s ease; }
+        .progress-stats { display: flex; justify-content: space-between; font-size: 13px; color: var(--ios-gray); }
+        .progress-stats .done { color: var(--ios-green); font-weight: 600; }
+        .progress-stats .total { font-weight: 600; color: var(--ios-text); }
+        .clear-btn { background: transparent; border: none; color: var(--ios-red); font-size: 13px; font-weight: 600; cursor: pointer; padding: 4px 8px; border-radius: 6px; transition: opacity 0.2s; }
+        .clear-btn:hover { opacity: 0.7; }
+
+        /* 任務列表 */
+        .task-list-container { background: var(--ios-card); border-radius: var(--ios-radius); box-shadow: var(--ios-shadow); overflow: hidden; }
+        .task-list-header { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--ios-separator); font-size: 15px; font-weight: 600; color: var(--ios-text); }
+        .task-list-header .count { background: var(--ios-light-gray); color: var(--ios-gray); padding: 2px 8px; border-radius: 10px; font-size: 12px; }
+
+        .task-list { list-style: none; max-height: 55vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+        .task-list::-webkit-scrollbar { width: 0; }
+
+        .task-item { display: flex; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--ios-separator); transition: background 0.2s; cursor: grab; background: var(--ios-card); }
+        .task-item:active { cursor: grabbing; }
+        .task-item.dragging { opacity: 0.5; background: var(--ios-bg); }
+        .task-item.drag-over { border-top: 2px solid var(--ios-blue); }
+
+        /* 到期狀態警示色 */
+        .task-item.warn-pink { background: rgba(255, 45, 85, 0.14); }
+        .task-item.warn-yellow { background: rgba(255, 204, 0, 0.20); }
+        .task-item.warn-lightblue { background: rgba(90, 200, 250, 0.16); }
+        [data-shift="night"] .task-item.warn-pink { background: rgba(255, 55, 95, 0.26); }
+        [data-shift="night"] .task-item.warn-yellow { background: rgba(255, 214, 10, 0.24); }
+        [data-shift="night"] .task-item.warn-lightblue { background: rgba(100, 210, 255, 0.22); }
+
+        .task-checkbox { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--ios-light-gray); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; background: transparent; margin-right: 12px; flex-shrink: 0; -webkit-appearance: none; appearance: none; }
+        .task-checkbox:checked { background: var(--ios-green); border-color: var(--ios-green); }
+        .task-checkbox:checked::after { content: '✓'; color: #fff; font-size: 14px; font-weight: 700; }
+
+        .task-info { flex: 1; min-width: 0; }
+        .task-name { font-size: 16px; font-weight: 500; color: var(--ios-text); word-break: break-word; transition: color 0.2s; }
+        .completed-task .task-name { text-decoration: line-through; color: var(--ios-gray); }
+        .task-badges { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+        .badge { font-size: 11px; padding: 2px 8px; border-radius: 8px; background: var(--ios-light-gray); color: var(--ios-gray); font-weight: 600; }
+        .badge.daily { background: #ffecec; color: var(--ios-red); }
+        [data-shift="night"] .badge.daily { background: #3a2a2a; color: #ff6b6b; }
+
+        .task-link { font-size: 13px; color: var(--ios-blue); margin-top: 6px; margin-bottom: 2px; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; padding: 4px 8px; background: rgba(0, 122, 255, 0.1); border-radius: 6px; word-break: break-all; transition: opacity 0.2s; }
+        .task-link:active { opacity: 0.7; }
+        [data-shift="night"] .task-link { background: rgba(10, 132, 255, 0.15); color: #0a84ff; }
+        .completed-task .task-link { opacity: 0.5; filter: grayscale(1); }
+
+        .task-actions { display: flex; gap: 6px; flex-shrink: 0; margin-left: 8px; }
+        .action-btn { width: 36px; height: 36px; border-radius: 50%; background: var(--ios-bg); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; transition: transform 0.1s; color: var(--ios-blue); }
+        .action-btn:active { transform: scale(0.9); }
+        .action-btn.delete { color: var(--ios-red); }
+
+        .empty-state { text-align: center; padding: 40px 20px; color: var(--ios-gray); }
+        .empty-state .icon { font-size: 40px; margin-bottom: 10px; }
+
+        .add-btn { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); width: 60px; height: 60px; border-radius: 50%; background: var(--ios-blue); border: none; color: #fff; font-size: 32px; cursor: pointer; box-shadow: 0 8px 20px rgba(0,122,255,0.4); transition: transform 0.2s; display: flex; align-items: center; justify-content: center; z-index: 100; -webkit-tap-highlight-color: transparent; }
+        .add-btn:active { transform: translateX(-50%) scale(0.9); }
+
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 20px; animation: fadeIn 0.2s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .modal { background: var(--ios-card); border-radius: 16px; padding: 24px 20px; max-width: 400px; width: 100%; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.2); animation: slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
+        .modal h3 { font-size: 20px; font-weight: 700; text-align: center; margin-bottom: 20px; color: var(--ios-text); }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; font-size: 14px; font-weight: 600; color: var(--ios-gray); margin-bottom: 6px; }
+        .form-group input[type="text"], .form-group input[type="date"], .form-group input[type="time"] { width: 100%; padding: 12px 16px; background: var(--ios-bg); border: none; border-radius: 10px; font-size: 16px; color: var(--ios-text); outline: none; transition: box-shadow 0.2s; }
+        .form-group input:focus { box-shadow: 0 0 0 2px var(--ios-blue); }
+        
+        .time-range-group { display: flex; gap: 8px; align-items: center; }
+        .shift-selector { display: flex; gap: 8px; }
+        .shift-option { flex: 1; padding: 10px 0; text-align: center; background: var(--ios-bg); border-radius: 10px; font-weight: 600; color: var(--ios-gray); cursor: pointer; transition: all 0.2s; user-select: none; }
+        .shift-option.selected { background: var(--ios-blue); color: #fff; }
+        .daily-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 4px 0; }
+        .daily-toggle input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--ios-blue); }
+        .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+        .modal-btn { flex: 1; padding: 14px; border-radius: 10px; border: none; font-size: 16px; font-weight: 600; cursor: pointer; transition: opacity 0.2s; }
+        .modal-btn.cancel { background: var(--ios-bg); color: var(--ios-text); }
+        .modal-btn.save { background: var(--ios-blue); color: #fff; }
+        .modal-btn:active { opacity: 0.7; }
+
+        .toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-100px); background: var(--ios-gray); color: #fff; padding: 10px 20px; border-radius: 20px; font-weight: 500; font-size: 14px; z-index: 300; transition: transform 0.4s; pointer-events: none; box-shadow: 0 8px 20px rgba(0,0,0,0.2); }
+        .toast.show { transform: translateX(-50%) translateY(0); }
+        .toast.success { background: var(--ios-green); }
+        .toast.error { background: var(--ios-red); }
+    </style>
+</head>
+<body data-shift="day">
+    <!-- 載入中動畫遮罩 -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="spinner"></div>
+        <div class="loading-text" id="loadingText">載入資料中...</div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+    <div class="container">
+        <div class="nav-bar">
+            <div>
+                <h1>任務清單</h1>
+                <div class="date-display" id="dateDisplay"></div>
+            </div>
+        </div>
+        <div class="segmented-control">
+            <div class="segment-btn active" id="btnDay" onclick="switchShift('day')">☀️ 日班</div>
+            <div class="segment-btn" id="btnNight" onclick="switchShift('night')">🌙 夜班</div>
+        </div>
+        <div class="view-toggle">
+            <div class="view-btn active" data-view="day" onclick="switchView('day')">日</div>
+            <div class="view-btn" data-view="week" onclick="switchView('week')">週</div>
+            <div class="view-btn" data-view="month" onclick="switchView('month')">月</div>
+        </div>
+        <div class="progress-card">
+            <div class="progress-header">
+                <span class="progress-label" id="progressLabel">今日進度</span>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <span class="progress-percent" id="progressPercent">0%</span>
+                    <button class="clear-btn" onclick="clearToday()" title="清除今日完成狀態">清除</button>
+                </div>
+            </div>
+            <div class="progress-bar-track"><div class="progress-bar-fill" id="progressBarFill" style="width:0%"></div></div>
+            <div class="progress-stats">
+                <span>已完成 <span class="done" id="doneCount">0</span> 項</span>
+                <span>總任務 <span class="total" id="totalCount">0</span> 項</span>
+            </div>
+            <div id="rangeStats" style="display:none; margin-top:12px; font-size:14px; color:var(--ios-gray);"></div>
+        </div>
+        <div class="task-list-container">
+            <div class="task-list-header">
+                <span id="taskListTitle">☀️ 日班任務</span>
+                <span class="count" id="taskCountBadge">0</span>
+            </div>
+            <ul class="task-list" id="taskList">
+                <div class="empty-state"><div class="icon">📝</div><p>暫無任務，點擊下方按鈕新增</p></div>
+            </ul>
+        </div>
+    </div>
+    <button class="add-btn" onclick="openAddModal()">＋</button>
+
+    <!-- 任務彈窗 -->
+    <div id="taskModal" class="modal-overlay" style="display:none;">
+        <div class="modal">
+            <h3 id="modalTitle">新增任務</h3>
+            <div class="form-group">
+                <label>任務名稱</label>
+                <input type="text" id="taskNameInput" placeholder="輸入任務名稱..." maxlength="100">
+            </div>
+            <div class="form-group">
+                <label>適用班別</label>
+                <div class="shift-selector" id="shiftSelector">
+                    <div class="shift-option selected" data-value="day" onclick="selectShift(this)">☀️ 日班</div>
+                    <div class="shift-option" data-value="night" onclick="selectShift(this)">🌙 夜班</div>
+                    <div class="shift-option" data-value="both" onclick="selectShift(this)">兩者</div>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>指定時間區間 (選填)</label>
+                <div class="time-range-group">
+                    <input type="time" id="startTimeInput">
+                    <span style="color:var(--ios-gray); font-weight:600;">~</span>
+                    <input type="time" id="endTimeInput">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>區網 / 本地路徑連結 (選填)</label>
+                <input type="text" id="linkPathInput" placeholder="例: \\192.168.1.100\share 或 https://..." maxlength="300">
+                <div style="margin-top:6px; font-size:12px; color:var(--ios-gray);">
+                    提示：若是本地/區網路徑，點擊將自動複製；若是網址將直接開啟。
+                </div>
+            </div>
+            <div class="form-group" id="dateFields">
+                <div style="display:flex; gap:10px;">
+                    <div style="flex:1;">
+                        <label>開始日期</label>
+                        <input type="date" id="startDateInput">
+                    </div>
+                    <div style="flex:1;">
+                        <label>完成日期</label>
+                        <input type="date" id="dueDateInput">
+                    </div>
+                </div>
+                <div style="margin-top:6px; font-size:12px; color:var(--ios-gray);">僅週/月任務需要設定日期</div>
+            </div>
+            <div class="form-group">
+                <label class="daily-toggle" onclick="toggleDaily()">
+                    <input type="checkbox" id="dailyCheckbox">
+                    <span>每日必做任務</span>
+                </label>
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn cancel" onclick="closeModal()">取消</button>
+                <button class="modal-btn save" id="saveBtn" onclick="saveTask()">儲存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 刪除確認彈窗 -->
+    <div id="deleteModal" class="modal-overlay" style="display:none;">
+        <div class="modal">
+            <h3>刪除任務</h3>
+            <p style="text-align:center; color:var(--ios-gray); margin-bottom:16px;">確定要刪除此任務嗎？</p>
+            <p style="text-align:center; font-weight:600; margin-bottom:20px;" id="deleteTaskName"></p>
+            <div class="modal-actions">
+                <button class="modal-btn cancel" onclick="closeDeleteModal()">取消</button>
+                <button class="modal-btn save" style="background:var(--ios-red);" onclick="confirmDelete()">刪除</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================================
+        // ★★★ 請填入你的 Supabase 專案資訊 ★★★
+        // 在 Supabase 後台 → Project Settings → API 可以找到
+        // ============================================================
+        const SUPABASE_URL = 'https://snacyzkfyiytcafpsfpq.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_e_aKEFvkYRfpacOE8Vtz4Q_Sd-dI47e';
+
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        let currentShift = 'day';
+        let currentView = 'day';
+        let tasks = [];
+        let dailyStatus = {};
+        let dailyStatusByDate = {};
+        let editingTaskId = null;
+        let deletingTaskId = null;
+        let selectedShiftForModal = 'day';
+        let isDailyForModal = false;
+        let draggedTaskId = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            updateDateDisplay();
+            loadTasks();
+        });
+
+        function showLoading(msg = '載入資料中...') {
+            document.getElementById('loadingText').textContent = msg;
+            document.getElementById('loadingOverlay').classList.add('show');
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.remove('show');
+        }
+
+        function updateDateDisplay() {
+            const now = new Date();
+            const weekdays = ['日','一','二','三','四','五','六'];
+            const y = now.getFullYear();
+            const m = String(now.getMonth()+1).padStart(2,'0');
+            const d = String(now.getDate()).padStart(2,'0');
+            document.getElementById('dateDisplay').textContent = `${y}年${m}月${d}日 星期${weekdays[now.getDay()]}`;
+        }
+
+        function getTodayString() {
+            const now = new Date();
+            return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+        }
+
+        function formatDate(date) {
+            return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+        }
+
+        function getDateRangeForView(view) {
+            const today = new Date();
+            if (view === 'day') {
+                return { start: getTodayString(), end: getTodayString() };
+            } else if (view === 'week') {
+                const end = new Date(today);
+                end.setDate(today.getDate() + 7);
+                return { start: getTodayString(), end: formatDate(end) };
+            } else if (view === 'month') {
+                const end = new Date(today);
+                end.setDate(today.getDate() + 30);
+                return { start: getTodayString(), end: formatDate(end) };
+            }
+        }
+
+        // 計算每日任務實際的截止時間點（Date 物件）
+        // 若開始時間 > 結束時間，代表跨夜班別（例如 20:00 ~ 08:00），
+        // 需依「現在」處於哪個階段，判斷截止時間是今天還是明天
+        function getDailyDeadlineDate(task) {
+            if (!task.time_range || task.time_range === '|') return null;
+            const parts = task.time_range.split('|');
+            const stStr = parts[0];
+            const etStr = parts[1];
+            if (!etStr) return null;
+            const [eh, em] = etStr.split(':').map(Number);
+            if (Number.isNaN(eh) || Number.isNaN(em)) return null;
+
+            const now = new Date();
+            const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), eh, em, 0);
+
+            if (!stStr) {
+                // 沒有開始時間，視為當天到期
+                return todayEnd;
+            }
+            const [sh, sm] = stStr.split(':').map(Number);
+            if (Number.isNaN(sh) || Number.isNaN(sm)) return todayEnd;
+
+            const startMinutes = sh * 60 + sm;
+            const endMinutes = eh * 60 + em;
+
+            if (startMinutes <= endMinutes) {
+                // 同一天內的時段（不跨夜）
+                return todayEnd;
+            }
+
+            // 跨夜時段（開始時間 > 結束時間）
+            const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), sh, sm, 0);
+            if (now.getTime() >= todayStart.getTime()) {
+                // 現在已過今天的開始時間 → 今晚開始、明天早上結束，deadline 在明天
+                const tomorrowEnd = new Date(todayEnd);
+                tomorrowEnd.setDate(tomorrowEnd.getDate() + 1);
+                return tomorrowEnd;
+            }
+            if (now.getTime() < todayEnd.getTime()) {
+                // 現在還在今天凌晨的結束時間之前 → 昨晚開始、今天早上結束，deadline 在今天
+                return todayEnd;
+            }
+            // 介於今天結束時間之後、今天開始時間之前的空檔（白天尚未上班），視為下一輪，deadline 在明天
+            const tomorrowEnd = new Date(todayEnd);
+            tomorrowEnd.setDate(tomorrowEnd.getDate() + 1);
+            return tomorrowEnd;
+        }
+
+        // 計算每日任務距離截止時間還剩幾分鐘（可能為負數，代表已逾時）
+        function getDailyRemainingMinutes(task) {
+            const deadline = getDailyDeadlineDate(task);
+            if (!deadline) return null;
+            const now = new Date();
+            return (deadline.getTime() - now.getTime()) / 60000;
+        }
+
+        // 依規則計算任務目前應顯示的狀態顏色 class
+        // 日任務：已過截止時間且未完成 → 粉紅色
+        // 週/月任務：依剩餘天數 → 3天=淡藍色、2天=黃色、剩1天或當天(含逾期)=粉紅色
+        function getTaskStatusClass(task, completed) {
+            if (completed) return '';
+            if (task.is_daily) {
+                const remaining = getDailyRemainingMinutes(task);
+                if (remaining !== null && remaining <= 0) return 'warn-pink';
+                return '';
+            }
+            if (task.due_date) {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const due = new Date(task.due_date + 'T00:00:00');
+                const diffDays = Math.round((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                if (diffDays <= 1) return 'warn-pink';
+                if (diffDays === 2) return 'warn-yellow';
+                if (diffDays === 3) return 'warn-lightblue';
+            }
+            return '';
+        }
+
+        function switchShift(shift) {
+            if (currentShift === shift) return;
+            currentShift = shift;
+            document.body.setAttribute('data-shift', shift);
+            document.getElementById('btnDay').classList.toggle('active', shift === 'day');
+            document.getElementById('btnNight').classList.toggle('active', shift === 'night');
+            document.getElementById('taskListTitle').textContent = shift === 'day' ? '☀️ 日班任務' : '🌙 夜班任務';
+            loadTasks();
+        }
+
+        function switchView(view) {
+            if (currentView === view) return;
+            currentView = view;
+            document.querySelectorAll('.view-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.view === view);
+            });
+            loadTasks();
+        }
+
+        async function loadTasks() {
+            if (!SUPABASE_URL || SUPABASE_URL.includes('YOUR_PROJECT_REF')) {
+                showToast('請先設定 SUPABASE_URL / SUPABASE_ANON_KEY', 'error');
+                return;
+            }
+            showLoading('載入任務資料...');
+            const today = getTodayString();
+            const range = getDateRangeForView(currentView);
+            try {
+                let query = supabaseClient.from('tasks').select('*');
+                query = query.or(`shift.eq.${currentShift},shift.eq.both`);
+                if (currentView === 'day') {
+                    query = query.or(`is_daily.eq.true,due_date.eq.${today}`);
+                } else {
+                    query = query
+                        .eq('is_daily', false)
+                        .gte('due_date', range.start)
+                        .lte('due_date', range.end);
+                }
+                const { data: taskData, error: taskError } = await query.order('order_index', { ascending: true });
+                if (taskError) throw taskError;
+
+                tasks = (taskData || []).map(t => ({
+                    id: t.id,
+                    name: t.name,
+                    shift: t.shift,
+                    is_daily: t.is_daily,
+                    start_date: t.start_date,
+                    due_date: t.due_date,
+                    order_index: t.order_index,
+                    time_range: t.time_range || '',
+                    link_path: t.link_path || ''
+                }));
+
+                const { data: statusData, error: statusError } = await supabaseClient
+                    .from('daily_status')
+                    .select('*')
+                    .gte('date', range.start)
+                    .lte('date', range.end)
+                    .or(`shift.eq.${currentShift},shift.eq.both`);
+                if (statusError) throw statusError;
+
+                dailyStatus = {};
+                dailyStatusByDate = {};
+                (statusData || []).forEach(item => {
+                    if (!dailyStatusByDate[item.date]) dailyStatusByDate[item.date] = {};
+                    dailyStatusByDate[item.date][item.task_id] = item.completed;
+                    if (item.date === today) dailyStatus[item.task_id] = item.completed;
+                });
+
+                renderTaskList();
+                updateProgressAndStats();
+            } catch (error) {
+                console.error('載入失敗:', error);
+                tasks = []; dailyStatus = {}; dailyStatusByDate = {};
+                renderEmptyState('無法載入任務，請檢查 Supabase 設定');
+                updateProgressAndStats();
+                showToast('載入失敗: ' + error.message, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function renderTaskList() {
+            const list = document.getElementById('taskList');
+            if (!tasks || tasks.length === 0) {
+                renderEmptyState('暫無任務，點擊下方按鈕新增');
+                document.getElementById('taskCountBadge').textContent = '0';
+                return;
+            }
+
+            // 依「完成日期(due_date)」優先排序，快到的排在最上面；
+            // 若雙方都沒有到期日（例如每日任務），改依「距離結束時間剩餘分鐘數」排序，剩越少排越上面
+            const sortedTasks = [...tasks].sort((a, b) => {
+                if (a.due_date && b.due_date) {
+                    const timeA = new Date(a.due_date).getTime();
+                    const timeB = new Date(b.due_date).getTime();
+                    if (timeA !== timeB) return timeA - timeB;
+                }
+                if (a.due_date && !b.due_date) return -1;
+                if (!a.due_date && b.due_date) return 1;
+
+                if (!a.due_date && !b.due_date) {
+                    const remA = getDailyRemainingMinutes(a);
+                    const remB = getDailyRemainingMinutes(b);
+                    if (remA !== null && remB !== null && remA !== remB) return remA - remB;
+                    if (remA !== null && remB === null) return -1;
+                    if (remA === null && remB !== null) return 1;
+                }
+                return (a.order_index || 0) - (b.order_index || 0);
+            });
+
+            list.innerHTML = sortedTasks.map(task => {
+                const completed = dailyStatus[task.id] || false;
+                const statusClass = getTaskStatusClass(task, completed);
+                const badges = [];
+                badges.push(`<span class="badge">${getShiftLabel(task.shift)}</span>`);
+                
+                if (task.time_range && task.time_range !== '|') {
+                    const parts = task.time_range.split('|');
+                    const st = parts[0]; const et = parts[1];
+                    let timeBadgeStr = '';
+                    if (st && et) timeBadgeStr = `${st} ~ ${et}`;
+                    else if (st) timeBadgeStr = `${st} 起`;
+                    else if (et) timeBadgeStr = `至 ${et}`;
+                    if (timeBadgeStr) badges.push(`<span class="badge">🕒 ${timeBadgeStr}</span>`);
+                }
+
+                if (task.is_daily) badges.push('<span class="badge daily">每日必做</span>');
+                if (task.start_date && task.due_date && !task.is_daily) {
+                    badges.push(`<span class="badge">📅 ${task.start_date} ~ ${task.due_date}</span>`);
+                } else if (task.due_date && !task.is_daily) {
+                    badges.push(`<span class="badge">📅 完成: ${task.due_date}</span>`);
+                }
+
+                let linkElement = '';
+                if (task.link_path) {
+                    linkElement = `<div class="task-link" onclick="handlePathClick(this, event)" data-path="${escapeHtml(task.link_path)}">
+                                     🔗 開啟 / 複製路徑
+                                   </div>`;
+                }
+
+                return `
+                    <li class="task-item ${completed ? 'completed-task' : ''} ${statusClass}" 
+                        draggable="true" 
+                        data-task-id="${task.id}"
+                        ondragstart="onDragStart(event, '${task.id}')"
+                        ondragover="onDragOver(event)"
+                        ondrop="onDrop(event, '${task.id}')"
+                        ondragend="onDragEnd()">
+                        <input type="checkbox" class="task-checkbox" ${completed ? 'checked' : ''} 
+                               onchange="toggleTask('${task.id}', this.checked)" aria-label="完成 ${escapeHtml(task.name)}">
+                        <div class="task-info">
+                            <div class="task-name">${escapeHtml(task.name)}</div>
+                            ${linkElement}
+                            <div class="task-badges">${badges.join('')}</div>
+                        </div>
+                        <div class="task-actions">
+                            <button class="action-btn" onclick="openEditModal('${task.id}')" title="編輯">✏️</button>
+                            <button class="action-btn delete" onclick="openDeleteModal('${task.id}')" title="刪除">🗑️</button>
+                        </div>
+                    </li>
+                `;
+            }).join('');
+            document.getElementById('taskCountBadge').textContent = tasks.length;
+        }
+
+        function handlePathClick(el, e) {
+            e.stopPropagation();
+            const path = el.getAttribute('data-path');
+            if (path.toLowerCase().startsWith('http://') || path.toLowerCase().startsWith('https://')) {
+                window.open(path, '_blank');
+                return;
+            }
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(path).then(() => {
+                    showToast('🔗 路徑已複製，請至資料夾貼上');
+                }).catch(err => fallbackCopyTextToClipboard(path));
+            } else {
+                fallbackCopyTextToClipboard(path);
+            }
+        }
+
+        function fallbackCopyTextToClipboard(text) {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.top = "0"; textArea.style.left = "0"; textArea.style.position = "fixed";
+            document.body.appendChild(textArea);
+            textArea.focus(); textArea.select();
+            try {
+                document.execCommand('copy');
+                showToast('🔗 路徑已複製，請至資料夾貼上');
+            } catch (err) {
+                showToast('複製失敗', 'error');
+            }
+            document.body.removeChild(textArea);
+        }
+
+        function renderEmptyState(message) {
+            const list = document.getElementById('taskList');
+            list.innerHTML = `<div class="empty-state"><div class="icon">📝</div><p>${message}</p></div>`;
+            document.getElementById('taskCountBadge').textContent = '0';
+        }
+
+        function getShiftLabel(shift) {
+            if (shift === 'day') return '☀️ 日班';
+            if (shift === 'night') return '🌙 夜班';
+            return '兩者';
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        function updateProgressAndStats() {
+            const total = tasks.length;
+            const done = tasks.filter(t => dailyStatus[t.id] || false).length;
+            const percent = total > 0 ? Math.round((done / total) * 100) : 0;
+            document.getElementById('progressPercent').textContent = `${percent}%`;
+            document.getElementById('progressPercent').className = 'progress-percent' + (percent === 100 && total > 0 ? ' complete' : '');
+            document.getElementById('progressBarFill').style.width = `${percent}%`;
+            document.getElementById('doneCount').textContent = done;
+            document.getElementById('totalCount').textContent = total;
+
+            const label = document.getElementById('progressLabel');
+            const rangeStatsEl = document.getElementById('rangeStats');
+            
+            if (currentView === 'day') {
+                label.textContent = total === 0 ? '今日無任務' : (percent === 100 ? '今日全部完成！' : '今日進度');
+                rangeStatsEl.style.display = 'none';
+            } else if (currentView === 'week') {
+                label.textContent = '本週區間任務進度';
+                rangeStatsEl.style.display = 'block';
+                rangeStatsEl.textContent = `（在此區間內勾選的今日狀態會被記錄）`;
+            } else {
+                label.textContent = '本月區間任務進度';
+                rangeStatsEl.style.display = 'block';
+                rangeStatsEl.textContent = `（在此區間內勾選的今日狀態會被記錄）`;
+            }
+        }
+
+        async function toggleTask(taskId, completed) {
+            showLoading('更新狀態...');
+            try {
+                const today = getTodayString();
+                const { error } = await supabaseClient
+                    .from('daily_status')
+                    .upsert(
+                        { task_id: taskId, date: today, shift: currentShift, completed: completed },
+                        { onConflict: 'task_id,date,shift' }
+                    );
+                if (error) throw error;
+                dailyStatus[taskId] = completed;
+                renderTaskList();
+                updateProgressAndStats();
+                showToast(completed ? '✅ 已完成' : '↩️ 已取消');
+            } catch (error) {
+                console.error('切換失敗:', error);
+                showToast('操作失敗: ' + error.message, 'error');
+                loadTasks();
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function clearToday() {
+            if (!confirm('確定要清除今日所有完成狀態嗎？')) return;
+            showLoading('清除完成狀態...');
+            try {
+                const { error } = await supabaseClient
+                    .from('daily_status')
+                    .delete()
+                    .eq('date', getTodayString())
+                    .eq('shift', currentShift);
+                if (error) throw error;
+                showToast('已清除今日狀態');
+                loadTasks();
+            } catch (error) {
+                showToast('清除失敗: ' + error.message, 'error');
+                hideLoading();
+            }
+        }
+
+        // 拖曳排序功能
+        function onDragStart(e, taskId) { draggedTaskId = taskId; e.target.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', taskId); }
+        function onDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; const item = e.target.closest('.task-item'); if (item && item.dataset.taskId !== draggedTaskId) { item.classList.add('drag-over'); } }
+        function onDrop(e, targetTaskId) {
+            e.preventDefault();
+            const sourceId = draggedTaskId || e.dataTransfer.getData('text/plain');
+            if (!sourceId || sourceId === targetTaskId) return;
+            const orderedIds = tasks.map(t => t.id);
+            const fromIndex = orderedIds.indexOf(sourceId);
+            const toIndex = orderedIds.indexOf(targetTaskId);
+            if (fromIndex !== -1 && toIndex !== -1) {
+                orderedIds.splice(fromIndex, 1); orderedIds.splice(toIndex, 0, sourceId);
+                orderedIds.forEach((id, idx) => { const task = tasks.find(t => t.id === id); if (task) task.order_index = idx + 1; });
+                saveOrder(orderedIds); renderTaskList();
+            }
+            clearDragStyles();
+        }
+        function onDragEnd() { clearDragStyles(); draggedTaskId = null; }
+        function clearDragStyles() { document.querySelectorAll('.task-item').forEach(item => { item.classList.remove('dragging', 'drag-over'); }); }
+        
+        async function saveOrder(orderedIds) {
+            try {
+                const updates = orderedIds.map((id, idx) =>
+                    supabaseClient.from('tasks').update({ order_index: idx + 1 }).eq('id', id)
+                );
+                await Promise.all(updates);
+            } catch (error) { showToast('排序保存失敗', 'error'); }
+        }
+
+        function openAddModal() {
+            editingTaskId = null;
+            selectedShiftForModal = currentShift === 'day' ? 'day' : 'night';
+            isDailyForModal = (currentView === 'day'); 
+            
+            document.getElementById('modalTitle').textContent = '新增任務';
+            document.getElementById('taskNameInput').value = '';
+            document.getElementById('startTimeInput').value = '';
+            document.getElementById('endTimeInput').value = '';
+            document.getElementById('linkPathInput').value = '';
+            document.getElementById('dailyCheckbox').checked = isDailyForModal;
+            
+            const today = new Date();
+            const startStr = formatDate(today);
+            let dueStr = startStr;
+            if (currentView === 'week') { const due = new Date(today); due.setDate(today.getDate() + 7); dueStr = formatDate(due); } 
+            else if (currentView === 'month') { const due = new Date(today); due.setDate(today.getDate() + 30); dueStr = formatDate(due); }
+            document.getElementById('startDateInput').value = startStr;
+            document.getElementById('dueDateInput').value = dueStr;
+            
+            updateShiftSelectorUI();
+            updateDateFieldsVisibility();
+            document.getElementById('taskModal').style.display = 'flex';
+            document.getElementById('taskNameInput').focus();
+        }
+
+        function openEditModal(taskId) {
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) return;
+            editingTaskId = taskId;
+            selectedShiftForModal = task.shift || 'day';
+            isDailyForModal = task.is_daily || false;
+            document.getElementById('modalTitle').textContent = '編輯任務';
+            document.getElementById('taskNameInput').value = task.name;
+            
+            if (task.time_range && task.time_range.includes('|')) {
+                const parts = task.time_range.split('|');
+                document.getElementById('startTimeInput').value = parts[0] || '';
+                document.getElementById('endTimeInput').value = parts[1] || '';
+            } else {
+                document.getElementById('startTimeInput').value = '';
+                document.getElementById('endTimeInput').value = '';
+            }
+            document.getElementById('linkPathInput').value = task.link_path || '';
+
+            document.getElementById('startDateInput').value = task.start_date || '';
+            document.getElementById('dueDateInput').value = task.due_date || '';
+            document.getElementById('dailyCheckbox').checked = isDailyForModal;
+            updateShiftSelectorUI();
+            updateDateFieldsVisibility();
+            document.getElementById('taskModal').style.display = 'flex';
+            document.getElementById('taskNameInput').focus();
+        }
+
+        function closeModal() { document.getElementById('taskModal').style.display = 'none'; editingTaskId = null; }
+        function selectShift(el) { document.querySelectorAll('.shift-option').forEach(opt => opt.classList.remove('selected')); el.classList.add('selected'); selectedShiftForModal = el.dataset.value; }
+        function updateShiftSelectorUI() { document.querySelectorAll('.shift-option').forEach(opt => { opt.classList.toggle('selected', opt.dataset.value === selectedShiftForModal); }); }
+        function toggleDaily() { isDailyForModal = document.getElementById('dailyCheckbox').checked; updateDateFieldsVisibility(); }
+
+        function updateDateFieldsVisibility() {
+            const dateFields = document.getElementById('dateFields');
+            if (isDailyForModal) {
+                dateFields.style.opacity = '0.5'; dateFields.style.pointerEvents = 'none';
+                document.getElementById('startDateInput').value = ''; document.getElementById('dueDateInput').value = '';
+            } else {
+                dateFields.style.opacity = '1'; dateFields.style.pointerEvents = 'auto';
+            }
+        }
+
+        async function saveTask() {
+            const name = document.getElementById('taskNameInput').value.trim();
+            if (!name) { showToast('請輸入任務名稱', 'error'); return; }
+            
+            const startDate = document.getElementById('startDateInput').value;
+            const dueDate = document.getElementById('dueDateInput').value;
+            if (!isDailyForModal && (!startDate || !dueDate)) { showToast('請設定開始日期和完成日期', 'error'); return; }
+
+            const startTime = document.getElementById('startTimeInput').value;
+            const endTime = document.getElementById('endTimeInput').value;
+            const timeRange = `${startTime}|${endTime}`;
+            const linkPath = document.getElementById('linkPathInput').value.trim();
+
+            showLoading('儲存任務中...');
+            closeModal();
+            try {
+                const payload = {
+                    name: name,
+                    shift: selectedShiftForModal,
+                    is_daily: isDailyForModal,
+                    start_date: isDailyForModal ? null : startDate,
+                    due_date: isDailyForModal ? null : dueDate,
+                    time_range: timeRange,
+                    link_path: linkPath
+                };
+
+                let error;
+                if (editingTaskId) {
+                    ({ error } = await supabaseClient.from('tasks').update(payload).eq('id', editingTaskId));
+                } else {
+                    const { data: maxData } = await supabaseClient
+                        .from('tasks')
+                        .select('order_index')
+                        .order('order_index', { ascending: false })
+                        .limit(1);
+                    const maxOrder = (maxData && maxData[0]) ? maxData[0].order_index : 0;
+                    payload.order_index = maxOrder + 1;
+                    ({ error } = await supabaseClient.from('tasks').insert(payload));
+                }
+                if (error) throw error;
+                showToast(editingTaskId ? '✅ 已更新' : '✅ 已新增'); loadTasks();
+            } catch (error) {
+                showToast('儲存失敗: ' + error.message, 'error');
+                hideLoading();
+            }
+        }
+
+        function openDeleteModal(taskId) {
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) return;
+            deletingTaskId = taskId;
+            document.getElementById('deleteTaskName').textContent = `「${task.name}」`;
+            document.getElementById('deleteModal').style.display = 'flex';
+        }
+        
+        function closeDeleteModal() { 
+            document.getElementById('deleteModal').style.display = 'none'; 
+            deletingTaskId = null;
+        }
+        
+        async function confirmDelete() {
+            if (!deletingTaskId) return;
+            const targetTaskId = deletingTaskId;
+            showLoading('刪除任務中...');
+            closeDeleteModal();
+            try {
+                // daily_status 已設定 on delete cascade，會自動一併刪除相關紀錄
+                const { error } = await supabaseClient.from('tasks').delete().eq('id', targetTaskId);
+                if (error) throw error;
+                showToast('🗑️ 已刪除'); loadTasks();
+            } catch (error) {
+                showToast('刪除失敗: ' + error.message, 'error');
+                hideLoading();
+            }
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message; toast.className = 'toast ' + type;
+            void toast.offsetWidth; toast.classList.add('show');
+            clearTimeout(toast._timeout); toast._timeout = setTimeout(() => toast.classList.remove('show'), 2500);
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') { closeModal(); closeDeleteModal(); }
+            if (e.key === 'Enter' && document.getElementById('taskModal').style.display === 'flex') { saveTask(); }
+        });
+        document.getElementById('taskModal').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeModal(); });
+        document.getElementById('deleteModal').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeDeleteModal(); });
+    </script>
+<!-- === 浮動返回首頁按鈕 === -->
+<a href="../" class="back-home-btn">🏠 返回首頁</a>
+
+<style>
+  .back-home-btn {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 99999;
+    background: rgba(15, 23, 42, 0.9); /* 深色半透明背景 */
+    color: #ffffff;
+    padding: 10px 16px;
+    border-radius: 30px;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    backdrop-filter: blur(4px); /* 模糊背景效果 */
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+  }
+
+  /* 手機按壓時的縮放回饋 */
+  .back-home-btn:active {
+    transform: scale(0.92);
+    background: #0f172a;
+  }
+</style>
+</body>
+</html>

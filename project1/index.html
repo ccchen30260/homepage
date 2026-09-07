@@ -1,0 +1,1897 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>捲繞出勤表(S4)</title>
+    <style>
+        :root {
+            --bg-day: #c6e0b4;
+            --bg-g: #ffff00;
+            --bg-special: #ff00ff;
+            --bg-personal: #8064a2;
+            --bg-night: #fce4d6;
+            --text-personal: #ffffff;
+            --bg-sick: #ff0000;
+            --text-sick: #ffffff;
+            --bg-physio: #ffe6cc;
+            --bg-typhoon: #dae8fc;
+            --bg-unattended: #d0d0d0;
+            
+            /* 新增班別顏色 */
+            --bg-return: #ff9900; /* 返 - 橘色 */
+            --bg-trip: #00b0f0;    /* 差 - 藍色 */
+            --bg-absent: #555555;  /* 曠 - 深灰色 */
+            
+            --border-color: #a0a0a0;
+        }
+
+        body {
+            font-family: "Microsoft JhengHei", Arial, sans-serif;
+            margin: 0;
+            padding: 10px;
+            background-color: #fcfcfc;
+            touch-action: manipulation;
+        }
+
+        .sync-status {
+            position: fixed;
+            bottom: 10px;
+            right: 110px;
+            background-color: rgba(0,0,0,0.75);
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            display: none;
+            z-index: 10001;
+        }
+
+        .login-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(245, 247, 250, 0.98);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+
+        .login-card {
+            background-color: #ffffff;
+            padding: 30px 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            width: 90%;
+            max-width: 360px;
+            text-align: center;
+            box-sizing: border-box;
+            border: 1px solid #e0e0e0;
+        }
+
+        .login-card h2 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: #333;
+            font-size: 20px;
+        }
+
+        .login-field {
+            margin-bottom: 15px;
+            text-align: left;
+        }
+
+        .login-field label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 14px;
+            font-weight: bold;
+            color: #555;
+        }
+
+        .login-field input, .login-field select {
+            width: 100%;
+            padding: 10px;
+            font-size: 15px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            box-sizing: border-box;
+            background-color: #fff;
+            outline: none;
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #fff;
+            background-color: #28a745;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: background-color 0.2s;
+        }
+
+        .login-btn:hover { background-color: #218838; }
+
+        .login-error {
+            color: #dc3545;
+            font-size: 13px;
+            margin-top: 12px;
+            display: none;
+            font-weight: bold;
+        }
+
+        .main-app { display: none; }
+
+        /* ========== 優化 1：將頂部控制列固定 ========== */
+        .header-controls {
+            position: sticky;
+            top: 0;
+            z-index: 100; /* 確保在最上層 */
+            background-color: #fcfcfc;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 0; /* 減少間距 */
+            padding: 10px 0 8px 0; /* 增加內距避免貼邊 */
+            width: 100%;
+            box-sizing: border-box;
+            border-bottom: 2px solid #e0e0e0; /* 加上分隔線，清楚辨識固定區 */
+        }
+        /* ======================================= */
+
+        .left-controls, .right-controls {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
+            max-width: 100%;
+        }
+
+        .left-controls { flex: 1 1 auto; }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            background-color: #00ff00;
+            padding: 2px 4px;
+            border: 1px solid #000;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        .control-group span {
+            font-weight: bold;
+            padding: 0 4px;
+            white-space: nowrap;
+            font-size: 13px;
+        }
+
+        .total-stats-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .stat-badge {
+            font-size: 13px;
+            font-weight: bold;
+            padding: 4px 8px;
+            border-radius: 4px;
+            white-space: nowrap;
+            border: 1px solid #bbb;
+        }
+
+        .stat-badge-ot { background-color: #e6f7ff; color: #0073e6; border-color: #91d5ff; }
+        .stat-badge-lv { background-color: #ffe6e6; color: #d9363e; border-color: #ffa39e; }
+        .stat-badge-ua { background-color: #e2e2e2; color: #495057; border-color: #ced4da; }
+
+        select {
+            font-size: 14px;
+            padding: 4px;
+            border: 1px solid #ccc;
+            background-color: #ffe6e6;
+            border-radius: 4px;
+            outline: none;
+        }
+
+        /* ========== 優化 2：當填表關閉時，下拉選單保持正常外觀，僅不可點擊 ========== */
+        select:disabled {
+            background-color: transparent !important;   /* 移除灰色背景 */
+            color: inherit !important;                 /* 字體顏色保持原本狀態 (黑或白) */
+            cursor: default !important;                /* 滑鼠游標保持普通樣式，不變為禁止符號 */
+            opacity: 1 !important;                     /* 完全不透明 */
+            -webkit-text-fill-color: unset !important; /* 防止部分瀏覽器強制改字色 */
+        }
+        /* ====================================================================== */
+
+        .user-info {
+            font-size: 13px;
+            font-weight: bold;
+            color: #333;
+            background-color: #e9ecef;
+            padding: 5px 8px;
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+
+        .change-pwd-btn, .logout-btn, .toggle-btn, .form-status-btn, .edit-ticker-btn, .edit-employee-btn {
+            padding: 6px 8px;
+            font-size: 12px;
+            font-weight: bold;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .change-pwd-btn { background-color: #17a2b8; }
+        .logout-btn { background-color: #dc3545; }
+        .toggle-btn { background-color: #007bff; }
+        .edit-ticker-btn { background-color: #fd7e14; } /* 橘色 */
+        .edit-employee-btn { background-color: #6f42c1; } /* 紫色 */
+
+        .form-status-btn.open { background-color: #28a745; }
+        .form-status-btn.closed { background-color: #6c757d; }
+        .form-status-btn:disabled { cursor: not-allowed; opacity: 0.85; }
+
+        /* =================== 確認按鈕 =================== */
+        .btn-confirm {
+            position: fixed;
+            bottom: 25px;
+            right: 25px;
+            z-index: 9999;
+            display: none; /* 預設隱藏，由JS控制 */
+            
+            padding: 15px 25px;
+            font-size: 20px;
+            font-weight: bold;
+            color: #fff;
+            background-color: #28a745;
+            border: none;
+            border-radius: 50px;
+            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.5);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            user-select: none;
+        }
+        .btn-confirm:hover:not(:disabled) {
+            background-color: #218838;
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(40, 167, 69, 0.6);
+        }
+        .btn-confirm:active:not(:disabled) {
+            transform: scale(0.95);
+        }
+        .btn-confirm:disabled {
+            background-color: #a0a0a0 !important;
+            box-shadow: none !important;
+            cursor: default !important;
+            transform: scale(1) !important;
+            opacity: 1 !important;
+        }
+        @media screen and (max-width: 600px) {
+            .btn-confirm {
+                bottom: 15px;
+                right: 15px;
+                padding: 12px 18px;
+                font-size: 17px;
+            }
+        }
+
+        /* =================== 中英雙語自定義彈窗 =================== */
+        .custom-modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+        }
+        .custom-modal-box {
+            background-color: #ffffff;
+            padding: 40px 30px;
+            border-radius: 16px;
+            max-width: 450px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            animation: fadeIn 0.3s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .custom-modal-box h3 {
+            margin-top: 0;
+            margin-bottom: 25px;
+            font-size: 22px;
+            line-height: 1.5;
+        }
+        .custom-modal-box p {
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 25px;
+            line-height: 1.6;
+        }
+        .modal-btn-group {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+        .modal-btn-confirm, .modal-btn-cancel {
+            padding: 12px 30px;
+            font-size: 17px;
+            font-weight: bold;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .modal-btn-confirm {
+            background-color: #28a745;
+            color: #fff;
+        }
+        .modal-btn-confirm:hover {
+            background-color: #218838;
+        }
+        .modal-btn-cancel {
+            background-color: #e9ecef;
+            color: #333;
+            border: 1px solid #ced4da;
+        }
+        .modal-btn-cancel:hover {
+            background-color: #dde0e3;
+        }
+
+        /* ========== 優化 3：表格容器高度控制 ========== */
+        .table-container {
+            overflow: auto;
+            /* 將高度設定為視窗高度扣除上方固定列與下方容器的估算值 */
+            height: calc(100vh - 90px); 
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            background-color: white;
+            -webkit-overflow-scrolling: touch;
+            margin-top: 5px; /* 與上方固定列的間距 */
+        }
+        /* ============================================ */
+
+        table {
+            border-collapse: separate;
+            border-spacing: 0;
+            width: 100%;
+            text-align: center;
+            font-size: 14px;
+            background-color: white;
+            white-space: nowrap;
+        }
+
+        th, td {
+            border-right: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0;
+            min-width: 32px;
+            height: 38px;
+            box-sizing: border-box;
+            background-clip: padding-box;
+        }
+
+        th:first-child, td:first-child { border-left: 1px solid var(--border-color); }
+        tr:first-child th { border-top: 1px solid var(--border-color); }
+
+        th { background-color: #f2f2f2; font-weight: bold; }
+
+        thead tr:nth-child(1) th { position: sticky; top: 0; z-index: 1; }
+        thead tr:nth-child(2) th { position: sticky; top: 38px; z-index: 1; }
+        thead tr:nth-child(3) th { position: sticky; top: 76px; z-index: 1; }
+
+        .stats-ot { position: sticky; left: 0; width: 40px; min-width: 40px; z-index: 2; color: #00b0f0; background-color: #e6f7ff; font-weight: bold; }
+        .stats-lv { position: sticky; left: 40px; width: 40px; min-width: 40px; z-index: 2; color: #ff0000; background-color: #ffe6e6; font-weight: bold; }
+        .col-name { position: sticky; left: 80px; width: 65px; min-width: 65px; z-index: 2; font-weight: bold; background-color: #fafafa; box-shadow: 2px 0 5px -2px rgba(0,0,0,0.3); }
+
+        thead th.stats-ot, thead th.stats-lv, thead th.col-name { z-index: 3 !important; background-color: #e0e0e0; color: black; }
+
+        body.hide-stats .stats-ot, body.hide-stats .stats-lv { display: none !important; }
+        body.hide-stats .col-name { left: 0 !important; }
+
+        .weekend-header { color: red; }
+        .today-header { background-color: #00ffff !important; }
+
+        tr.daily-ot-row {
+            background-color: #fffbe6;
+            font-weight: bold;
+        }
+        tr.daily-ot-row td {
+            background-color: #fffbe6;
+            color: #d48806;
+            border-top: 2px solid #ffe58f;
+        }
+        tr.daily-ot-row td.col-name {
+            background-color: #fff1b8;
+            color: #873800;
+        }
+        tr.daily-ot-row td.stats-ot, tr.daily-ot-row td.stats-lv {
+            background-color: #fff1b8;
+        }
+
+        .cell-content { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; min-height: 38px; box-sizing: border-box; }
+
+        .shift-select {
+            width: 100%; height: 38px; border: none; background-color: transparent;
+            font-size: 15px; font-family: inherit; text-align: center; text-align-last: center;
+            appearance: none; -webkit-appearance: none; -moz-appearance: none; cursor: pointer; outline: none;
+            color: inherit; font-weight: inherit;
+        }
+
+        .shift-select:disabled {
+            cursor: not-allowed; /* 關閉時會出現禁止符號，但外觀依然正常 */
+        }
+
+        .shift-day { background-color: var(--bg-day); }
+        .shift-night { background-color: var(--bg-night); }
+        .shift-g { background-color: var(--bg-g); color: black; font-weight: bold; }
+        .shift-unattended { background-color: var(--bg-unattended); color: black; font-weight: bold; }
+        .shift-special { background-color: var(--bg-special); color: black; font-weight: bold; }
+        .shift-personal { background-color: var(--bg-personal); color: var(--text-personal); font-weight: bold; }
+        .shift-sick { background-color: var(--bg-sick); color: var(--text-sick); font-weight: bold; }
+        .shift-physio { background-color: var(--bg-physio); color: black; font-weight: bold; }
+        .shift-typhoon { background-color: var(--bg-typhoon); color: black; font-weight: bold; }
+        
+        /* 新增班別樣式 */
+        .shift-return { background-color: var(--bg-return); color: white; font-weight: bold; }
+        .shift-trip { background-color: var(--bg-trip); color: white; font-weight: bold; }
+        .shift-absent { background-color: var(--bg-absent); color: white; font-weight: bold; }
+
+        .daily-mark-select {
+            width: 100%;
+            height: 38px;
+            border: 1px solid #ccc;
+            background-color: #ffffff;
+            font-size: 14px;
+            text-align: center;
+            text-align-last: center;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            cursor: pointer;
+            outline: none;
+        }
+        .daily-mark-select:disabled {
+            background-color: transparent !important;
+            color: inherit !important;
+            cursor: default !important;
+            border: none !important;
+            opacity: 1 !important;
+        }
+
+        td.pending-edit select {
+            outline: 3px solid #ffc107;
+            background-color: #fff3cd !important;
+        }
+
+        /* ========== 管理者專用：十字交叉列/行高亮效果 ========== */
+        .active-row td {
+            background-color: #d2e6fc !important;
+        }
+        .active-row td select {
+            background-color: #d2e6fc !important;
+        }
+        .active-col {
+            background-color: #d2e6fc !important;
+        }
+        /* 讓固定欄位也變色，但又不會吃色 */
+        .active-row td.stats-ot, .active-row td.stats-lv, .active-row td.col-name,
+        .active-col {
+            background-color: #d2e6fc !important;
+        }
+
+        /* =================== 滑動開關切換樣式 =================== */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 34px;
+            height: 18px;
+            margin-left: 5px;
+            margin-right: 5px;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 14px;
+            width: 14px;
+            left: 2px;
+            bottom: 2px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #28a745;
+        }
+        input:checked + .slider:before {
+            transform: translateX(16px);
+        }
+        .slider.round {
+            border-radius: 34px;
+        }
+        .slider.round:before {
+            border-radius: 50%;
+        }
+
+        /* =================== 跑馬燈容器與樣式 =================== */
+        #tickerContainer {
+            width: 100%;
+            overflow: hidden;
+            background-color: #fffbe6;
+            border: 1px solid #ddd;
+            border-top: none;
+            padding: 8px 0;
+            white-space: nowrap;
+            box-sizing: border-box;
+            position: relative;
+            display: none; /* 預設隱藏 */
+        }
+        #tickerText {
+            display: inline-block;
+            padding-left: 100%;
+            animation: scrollText 35s linear infinite;
+            font-size: 15px;
+            color: #333;
+        }
+        @keyframes scrollText {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-100%); }
+        }
+        
+        /* 管理者編輯跑馬燈彈窗 */
+        #tickerEditModal .custom-modal-box {
+            width: 90%;
+            max-width: 500px;
+        }
+        #tickerEditModal textarea {
+            width: 100%;
+            height: 100px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 15px;
+            box-sizing: border-box;
+            resize: vertical;
+            margin-bottom: 15px;
+        }
+
+        /* =================== 管理人員清單樣式 =================== */
+        #employeeEditModal .custom-modal-box {
+            width: 90%;
+            max-width: 450px;
+        }
+        #employeeListContainer {
+            text-align: left;
+            max-height: 250px;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            padding: 10px;
+            margin: 10px 0 15px 0;
+            border-radius: 4px;
+        }
+        .emp-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 5px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+        }
+        .emp-item:last-child { border-bottom: none; }
+        .emp-item .emp-name { font-size: 16px; flex: 1; }
+        .emp-item .emp-actions { display: flex; gap: 8px; }
+        .emp-item .emp-actions button {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 4px;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        .emp-item .emp-actions .edit-btn:hover { background: #e2e6ea; }
+        .emp-item .emp-actions .del-btn:hover { background: #f8d7da; color: #dc3545; }
+        
+        #employeeAddBox {
+            display: flex;
+            gap: 8px;
+            margin-top: 5px;
+        }
+        #employeeAddBox input {
+            flex: 1;
+            padding: 8px 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 15px;
+            outline: none;
+        }
+        #employeeAddBox button {
+            padding: 8px 15px;
+            font-weight: bold;
+            background-color: #28a745;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #employeeAddBox button:hover { background-color: #218838; }
+    </style>
+    <!-- Supabase JS client (UMD build) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body>
+
+<button id="confirmBtn" class="btn-confirm" disabled>✔ Confirm / 確認儲存 (0)</button>
+<div id="syncStatus" class="sync-status">☁️ 雲端同步中...</div>
+
+<!-- ==== 登入視窗 ==== -->
+<div id="loginOverlay" class="login-overlay">
+    <div class="login-card">
+        <h2>系統登入(捲繞S4)</h2>
+        <div class="login-field">
+            <label for="loginNameSelect">員工姓名 (帳號)</label>
+            <select id="loginNameSelect">
+                <option value="">-- 請選擇姓名 --</option>
+            </select>
+        </div>
+        <div class="login-field">
+            <label for="loginPasswordInput">密碼</label>
+            <input type="password" id="loginPasswordInput" placeholder="預設密碼：0000">
+        </div>
+        <button id="loginSubmitBtn" class="login-btn">登入</button>
+        <div id="loginErrorMsg" class="login-error">請選擇姓名或密碼錯誤！</div>
+    </div>
+</div>
+
+<!-- ==== 修改密碼視窗 ==== -->
+<div id="changePwdModal" class="login-overlay" style="display: none; z-index: 10000;">
+    <div class="login-card">
+        <h2>修改密碼</h2>
+        <div class="login-field">
+            <label for="oldPwdInput">舊密碼</label>
+            <input type="password" id="oldPwdInput" placeholder="請輸入原密碼">
+        </div>
+        <div class="login-field">
+            <label for="newPwdInput">新密碼</label>
+            <input type="password" id="newPwdInput" placeholder="請輸入新密碼">
+        </div>
+        <div class="login-field">
+            <label for="confirmPwdInput">確認新密碼</label>
+            <input type="password" id="confirmPwdInput" placeholder="請再次輸入新密碼">
+        </div>
+        <div style="display: flex; gap: 10px; margin-top: 15px;">
+            <button id="cancelPwdBtn" class="login-btn" style="background-color: #6c757d;">取消</button>
+            <button id="savePwdBtn" class="login-btn">儲存修改</button>
+        </div>
+        <div id="pwdErrorMsg" class="login-error"></div>
+    </div>
+</div>
+
+<!-- ==== 自定義雙語確認視窗 ==== -->
+<div id="confirmModal" class="custom-modal-overlay">
+    <div class="custom-modal-box">
+        <h3 id="confirmModalTitle">Confirm / 確認動作</h3>
+        <p id="confirmModalText">Are you sure you want to save the changes? / 確定要儲存異動資料嗎？</p>
+        <div class="modal-btn-group">
+            <button id="confirmModalYes" class="modal-btn-confirm">Confirm / 確定</button>
+            <button id="confirmModalNo" class="modal-btn-cancel">Cancel / 取消</button>
+        </div>
+    </div>
+</div>
+
+<!-- ==== 自定義成功提示視窗 ==== -->
+<div id="successModal" class="custom-modal-overlay">
+    <div class="custom-modal-box">
+        <h3>Data saved successfully!<br>資料儲存成功！</h3>
+        <div class="modal-btn-group" style="justify-content: center;">
+            <button id="modalConfirmBtn" class="modal-btn-confirm">Confirm / 確認</button>
+        </div>
+    </div>
+</div>
+
+<!-- ==== 管理員修改跑馬燈視窗 ==== -->
+<div id="tickerEditModal" class="custom-modal-overlay">
+    <div class="custom-modal-box">
+        <h3>Edit Ticker / 修改跑馬燈</h3>
+        <p>Please edit the rolling text below:<br>請在下方修改跑馬燈文字內容：</p>
+        <textarea id="tickerInputArea"></textarea>
+        <div class="modal-btn-group">
+            <button id="tickerSaveBtn" class="modal-btn-confirm">Save / 儲存</button>
+            <button id="tickerCancelBtn" class="modal-btn-cancel">Cancel / 取消</button>
+        </div>
+    </div>
+</div>
+
+<!-- ==== 管理者管理人員視窗 ==== -->
+<div id="employeeEditModal" class="custom-modal-overlay">
+    <div class="custom-modal-box">
+        <h3>Manage Staff / 管理人員</h3>
+        <p>Click name to edit, click trash to delete.<br>點擊姓名可修改，點擊垃圾桶可刪除。</p>
+        <div id="employeeListContainer"></div>
+        <div id="employeeAddBox">
+            <input type="text" id="newEmployeeInput" placeholder="Add name / 輸入新姓名...">
+            <button id="addEmployeeBtn">➕ Add / 新增</button>
+        </div>
+        <div class="modal-btn-group" style="margin-top: 15px;">
+            <button id="employeeSaveBtn" class="modal-btn-confirm">Save & Close / 儲存並關閉</button>
+        </div>
+    </div>
+</div>
+
+<!-- ==== 主應用程式 ==== -->
+<div id="mainApp" class="main-app">
+    <!-- ========== 控制列已具備 sticky 黏性效果 ========== -->
+    <div class="header-controls">
+        <div class="left-controls">
+            <div class="control-group">
+                <span>年份</span>
+                <select id="yearSelect"></select>
+            </div>
+            <div class="control-group">
+                <span>月份</span>
+                <select id="monthSelect"></select>
+            </div>
+            <div class="control-group">
+                <span>加班限制</span>
+                <select id="otLimitSelect">
+                    <option value="">空白</option>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                    <option value="5">5</option>
+                    <option value="6">6</option>
+                    <option value="7">7</option>
+                </select>
+            </div>
+            <div class="total-stats-group">
+                <span id="totalOtDisplay" class="stat-badge stat-badge-ot">全班加班: 0天</span>
+                <span id="totalLvDisplay" class="stat-badge stat-badge-lv">全班請假: 0天</span>
+                <span id="totalUaDisplay" class="stat-badge stat-badge-ua">加班未到: 0天</span>
+            </div>
+        </div>
+        <div class="right-controls">
+            <button id="formStatusBtn" class="form-status-btn open">填表：開啟</button>
+            <div id="userInfoDisplay" class="user-info">👤 未登入</div>
+            <button id="changePwdBtn" class="change-pwd-btn">修改密碼</button>
+            <button id="logoutBtn" class="logout-btn">登出</button>
+            <button id="toggleStatsBtn" class="toggle-btn">隱藏統計</button>
+            
+            <!-- ========== 十字高亮開關 ========== -->
+            <div class="control-group" id="crosshairControl" style="display: none; background-color: #e0e0e0; border-color: #999;">
+                <span style="font-size:12px; color:#333;">十字高亮</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="crosshairToggle">
+                    <span class="slider round"></span>
+                </label>
+            </div>
+
+            <!-- ========== 管理者專用：編輯跑馬燈按鈕 ========== -->
+            <button id="editTickerBtn" class="edit-ticker-btn" style="display: none;">📝 修改跑馬燈</button>
+            
+            <!-- ========== 管理者專用：管理人員按鈕 ========== -->
+            <button id="editEmployeeBtn" class="edit-employee-btn" style="display: none;">👥 管理人員</button>
+        </div>
+    </div>
+    <!-- ================================================== -->
+
+    <!-- ========== 表格容器已設定高度與捲動條 ========== -->
+    <div class="table-container">
+        <table id="scheduleTable">
+            <thead id="tableHead"></thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+    <!-- =============================================== -->
+
+    <!-- ========== 跑馬燈顯示區塊 ========== -->
+    <div id="tickerContainer">
+        <div id="tickerText"></div>
+    </div>
+</div>
+
+<script>
+    // ===== 雲端後端：Supabase =====
+    // 請填入你自己 Supabase 專案的 URL 與 anon public key
+    // (Supabase 專案首頁 -> Project Settings -> API)
+    // 這裡沿用跟「捲繞排班(S1~S4)」同一個 Supabase 專案／同一組資料表
+    // (shifts / passwords / ot_limits / settings)，兩個頁面資料是共用的
+    const SUPABASE_URL = "https://nufuhsucldfrrknmokdu.supabase.co";       // 例如 https://xxxxxxxxxxxx.supabase.co
+    const SUPABASE_ANON_KEY = "sb_publishable_AjX0UqKNIs9rSxc395aO1w_HFSeaxjz";     // 例如 eyJhbGciOi...
+
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // 將原本的 const 改為 let，並從雲端讀取
+    let employees = [
+        "陳喬志", "楊代億", "廖曉彤", "蔡靜儀", "賴建亦", "施榮傑",
+        "陰其德", "黃譯鋒", "楊雅婷", "羅啟倫", "埃爾默", "拉斯特",
+        "雷伊", "漢斯", "達利斯", "甘達", "特拉多", "達爾文"
+    ];
+
+    const defaultEmployees = [...employees];
+
+    const weekDaysTW = ["日", "一", "二", "三", "四", "五", "六"];
+
+    let cloudData = { shifts: {}, passwords: {}, otLimits: {}, settings: {}, dailyMarks: {} };
+    let pendingChanges = {};
+
+    const syncStatus = document.getElementById('syncStatus');
+    const loginOverlay = document.getElementById('loginOverlay');
+    const loginNameSelect = document.getElementById('loginNameSelect');
+    const loginPasswordInput = document.getElementById('loginPasswordInput');
+    const loginSubmitBtn = document.getElementById('loginSubmitBtn');
+    const loginErrorMsg = document.getElementById('loginErrorMsg');
+
+    const changePwdModal = document.getElementById('changePwdModal');
+    const oldPwdInput = document.getElementById('oldPwdInput');
+    const newPwdInput = document.getElementById('newPwdInput');
+    const confirmPwdInput = document.getElementById('confirmPwdInput');
+    const cancelPwdBtn = document.getElementById('cancelPwdBtn');
+    const savePwdBtn = document.getElementById('savePwdBtn');
+    const pwdErrorMsg = document.getElementById('pwdErrorMsg');
+    const changePwdBtn = document.getElementById('changePwdBtn');
+
+    const mainApp = document.getElementById('mainApp');
+    const userInfoDisplay = document.getElementById('userInfoDisplay');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const formStatusBtn = document.getElementById('formStatusBtn');
+    
+    const confirmBtn = document.getElementById('confirmBtn');
+    const confirmModal = document.getElementById('confirmModal');
+    const confirmModalText = document.getElementById('confirmModalText');
+    const confirmModalYes = document.getElementById('confirmModalYes');
+    const confirmModalNo = document.getElementById('confirmModalNo');
+
+    const successModal = document.getElementById('successModal');
+    const modalConfirmBtn = document.getElementById('modalConfirmBtn');
+
+    const yearSelect = document.getElementById('yearSelect');
+    const monthSelect = document.getElementById('monthSelect');
+    const otLimitSelect = document.getElementById('otLimitSelect');
+    const toggleStatsBtn = document.getElementById('toggleStatsBtn');
+
+    const totalOtDisplay = document.getElementById('totalOtDisplay');
+    const totalLvDisplay = document.getElementById('totalLvDisplay');
+    const totalUaDisplay = document.getElementById('totalUaDisplay');
+
+    // 獲取新 DOM
+    const crosshairControl = document.getElementById('crosshairControl');
+    const crosshairToggle = document.getElementById('crosshairToggle');
+    const editTickerBtn = document.getElementById('editTickerBtn');
+    const tickerEditModal = document.getElementById('tickerEditModal');
+    const tickerInputArea = document.getElementById('tickerInputArea');
+    const tickerSaveBtn = document.getElementById('tickerSaveBtn');
+    const tickerCancelBtn = document.getElementById('tickerCancelBtn');
+    const tickerContainer = document.getElementById('tickerContainer');
+    const tickerTextEl = document.getElementById('tickerText');
+
+    // 管理人員用 DOM
+    const editEmployeeBtn = document.getElementById('editEmployeeBtn');
+    const employeeEditModal = document.getElementById('employeeEditModal');
+    const employeeListContainer = document.getElementById('employeeListContainer');
+    const newEmployeeInput = document.getElementById('newEmployeeInput');
+    const addEmployeeBtn = document.getElementById('addEmployeeBtn');
+    const employeeSaveBtn = document.getElementById('employeeSaveBtn');
+
+    function showSync() { syncStatus.style.display = 'block'; }
+    function hideSync() { syncStatus.style.display = 'none'; }
+
+    // 更新登入下拉選單（使用動態 employees）
+    function updateLoginSelect() {
+        loginNameSelect.innerHTML = '<option value="">-- 請選擇姓名 --</option>';
+        employees.forEach(emp => {
+            let opt = document.createElement('option');
+            opt.value = emp; opt.textContent = emp;
+            loginNameSelect.appendChild(opt);
+        });
+    }
+
+    // ===== Supabase 讀寫輔助函式 =====
+    function rowsToMap(rows) {
+        const map = {};
+        if (!rows) return map;
+        rows.forEach(r => { map[r.key] = r.value; });
+        return map;
+    }
+
+    async function fetchCloudData() {
+        showSync();
+        try {
+            const [shiftsRes, passwordsRes, otLimitsRes, settingsRes] = await Promise.all([
+                supabaseClient.from('shifts').select('key,value'),
+                supabaseClient.from('passwords').select('key,value'),
+                supabaseClient.from('ot_limits').select('key,value'),
+                supabaseClient.from('settings').select('key,value')
+            ]);
+
+            if (shiftsRes.error) throw shiftsRes.error;
+            if (passwordsRes.error) throw passwordsRes.error;
+            if (otLimitsRes.error) throw otLimitsRes.error;
+            if (settingsRes.error) throw settingsRes.error;
+
+            cloudData = {
+                shifts: rowsToMap(shiftsRes.data),
+                passwords: rowsToMap(passwordsRes.data),
+                otLimits: rowsToMap(otLimitsRes.data),
+                settings: rowsToMap(settingsRes.data)
+            };
+
+            if (cloudData.settings && cloudData.settings.dailyMarks) {
+                try {
+                    cloudData.dailyMarks = JSON.parse(cloudData.settings.dailyMarks);
+                } catch (e) {
+                    cloudData.dailyMarks = {};
+                }
+            } else {
+                cloudData.dailyMarks = {};
+            }
+
+            // 讀取雲端儲存的人員名單
+            if (cloudData.settings && cloudData.settings['employee_list']) {
+                try {
+                    const savedEmployees = JSON.parse(cloudData.settings['employee_list']);
+                    if (Array.isArray(savedEmployees) && savedEmployees.length > 0) {
+                        employees = savedEmployees;
+                    }
+                } catch (e) {
+                    console.warn("解析員工列表失敗，使用預設值");
+                    employees = [...defaultEmployees];
+                }
+            } else {
+                // 如果雲端沒有此設定，建立預設值並儲存
+                if (!cloudData.settings) cloudData.settings = {};
+                cloudData.settings['employee_list'] = JSON.stringify(employees);
+                postCloudData({ action: 'saveSetting', key: 'employee_list', value: JSON.stringify(employees) });
+            }
+
+            // 讀取跑馬燈預設
+            if (!cloudData.settings || !cloudData.settings['ticker_text']) {
+                if (!cloudData.settings) cloudData.settings = {};
+                const defaultText = '※"G"→加班；"C"→加班費1倍；"換"→換班日(不加班)；"歲"→歲修(不上班)；"旺"→尾牙(不上班)';
+                cloudData.settings['ticker_text'] = defaultText;
+                postCloudData({ action: 'saveSetting', key: 'ticker_text', value: defaultText });
+            }
+
+        } catch (err) {
+            console.error("雲端讀取失敗", err);
+        } finally {
+            hideSync();
+            updateLoginSelect(); // 更新登入選單
+        }
+    }
+
+    async function postCloudData(payload) {
+        showSync();
+        try {
+            const tableMap = {
+                saveShift: 'shifts',
+                savePassword: 'passwords',
+                saveOtLimit: 'ot_limits',
+                saveSetting: 'settings'
+            };
+            const table = tableMap[payload.action];
+            if (!table) return;
+            const { error } = await supabaseClient
+                .from(table)
+                .upsert({ key: payload.key, value: (payload.value === undefined || payload.value === null) ? '' : String(payload.value) }, { onConflict: 'key' });
+            if (error) throw error;
+        } catch (err) {
+            console.error("雲端寫入失敗", err);
+        } finally {
+            hideSync();
+        }
+    }
+
+    async function saveDailyMarks() {
+        const serialized = JSON.stringify(cloudData.dailyMarks);
+        if (!cloudData.settings) cloudData.settings = {};
+        cloudData.settings.dailyMarks = serialized;
+        await postCloudData({ action: 'saveSetting', key: 'dailyMarks', value: serialized });
+    }
+
+    function getUserPassword(empName) {
+        return (cloudData.passwords && cloudData.passwords[empName]) ? cloudData.passwords[empName] : "0000";
+    }
+
+    function isFormOpen() {
+        return !(cloudData.settings && cloudData.settings['form_status'] === 'closed');
+    }
+
+    function updateFormStatusUI() {
+        const currentUser = sessionStorage.getItem('s4_current_user');
+        const open = isFormOpen();
+        
+        if (currentUser !== "陳喬志") {
+            formStatusBtn.style.display = 'none';
+        } else {
+            formStatusBtn.style.display = 'inline-block';
+        }
+
+        if (open) {
+            formStatusBtn.textContent = '填表：開啟';
+            formStatusBtn.className = 'form-status-btn open';
+        } else {
+            formStatusBtn.textContent = '填表：關閉';
+            formStatusBtn.className = 'form-status-btn closed';
+        }
+        formStatusBtn.disabled = (currentUser !== "陳喬志");
+    }
+
+    formStatusBtn.addEventListener('click', function() {
+        const currentUser = sessionStorage.getItem('s4_current_user');
+        if (currentUser !== "陳喬志") return;
+        const nextState = isFormOpen() ? 'closed' : 'open';
+        if (!cloudData.settings) cloudData.settings = {};
+        cloudData.settings['form_status'] = nextState;
+        postCloudData({ action: 'saveSetting', key: 'form_status', value: nextState });
+        updateFormStatusUI();
+        renderTable();
+    });
+
+    async function checkLoginStatus() {
+        await fetchCloudData();
+        const currentUser = sessionStorage.getItem('s4_current_user');
+        if (currentUser) {
+            loginOverlay.style.display = 'none';
+            mainApp.style.display = 'block';
+            userInfoDisplay.textContent = `👤 ${currentUser}`;
+            updateFormStatusUI();
+            renderTable();
+        } else {
+            loginOverlay.style.display = 'flex';
+            mainApp.style.display = 'none';
+        }
+    }
+
+    loginSubmitBtn.addEventListener('click', function() {
+        const selectedUser = loginNameSelect.value;
+        const inputPwd = loginPasswordInput.value;
+        const correctPwd = getUserPassword(selectedUser);
+        if (selectedUser && inputPwd === correctPwd) {
+            sessionStorage.setItem('s4_current_user', selectedUser);
+            loginErrorMsg.style.display = 'none';
+            loginPasswordInput.value = '';
+            showSync(); 
+            checkLoginStatus();
+        } else {
+            loginErrorMsg.style.display = 'block';
+        }
+    });
+
+    changePwdBtn.addEventListener('click', function() {
+        oldPwdInput.value = ''; newPwdInput.value = ''; confirmPwdInput.value = '';
+        pwdErrorMsg.style.display = 'none';
+        changePwdModal.style.display = 'flex';
+    });
+
+    cancelPwdBtn.addEventListener('click', function() { changePwdModal.style.display = 'none'; });
+
+    savePwdBtn.addEventListener('click', async function() {
+        const currentUser = sessionStorage.getItem('s4_current_user');
+        const correctPwd = getUserPassword(currentUser);
+        const oldVal = oldPwdInput.value;
+        const newVal = newPwdInput.value;
+        const confirmVal = confirmPwdInput.value;
+        if (oldVal !== correctPwd) {
+            pwdErrorMsg.textContent = "舊密碼輸入錯誤！";
+            pwdErrorMsg.style.display = "block"; return;
+        }
+        if (!newVal) {
+            pwdErrorMsg.textContent = "新密碼不可為空白！";
+            pwdErrorMsg.style.display = "block"; return;
+        }
+        if (newVal !== confirmVal) {
+            pwdErrorMsg.textContent = "兩次輸入的新密碼不一致！";
+            pwdErrorMsg.style.display = "block"; return;
+        }
+        if(!cloudData.passwords) cloudData.passwords = {};
+        cloudData.passwords[currentUser] = newVal;
+        postCloudData({ action: 'savePassword', key: currentUser, value: newVal });
+        alert("密碼修改成功！");
+        changePwdModal.style.display = 'none';
+    });
+
+    logoutBtn.addEventListener('click', function() {
+        sessionStorage.removeItem('s4_current_user');
+        loginNameSelect.value = ""; loginPasswordInput.value = "";
+        checkLoginStatus();
+    });
+
+    const currentData = new Date();
+    const currentYear = currentData.getFullYear();
+
+    for (let y = currentYear - 5; y <= currentYear + 5; y++) {
+        let option = document.createElement('option');
+        option.value = y; option.text = y;
+        if (y === currentYear) option.selected = true;
+        yearSelect.appendChild(option);
+    }
+
+    for (let m = 1; m <= 12; m++) {
+        let option = document.createElement('option');
+        option.value = m; option.text = m;
+        if (m === (currentData.getMonth() + 1)) option.selected = true;
+        monthSelect.appendChild(option);
+    }
+
+    toggleStatsBtn.addEventListener('click', function() {
+        document.body.classList.toggle('hide-stats');
+        this.textContent = document.body.classList.contains('hide-stats') ? '顯示統計' : '隱藏統計';
+    });
+
+    otLimitSelect.addEventListener('change', function() {
+        const year = yearSelect.value;
+        const month = monthSelect.value;
+        const limitKey = `${year}_${month}`;
+        if (!cloudData.otLimits) cloudData.otLimits = {};
+        cloudData.otLimits[limitKey] = this.value;
+        postCloudData({ action: 'saveOtLimit', key: limitKey, value: this.value });
+    });
+
+    function getDefaultShift(year, month, day) {
+        const shiftCycle = ['日', '夜', '夜', '日', '日', '夜', '夜', '日', '日', '夜', '夜', '日'];
+        const utcEpoch = Date.UTC(2025, 11, 31);
+        const utcTarget = Date.UTC(year, month - 1, day);
+        const diffDays = Math.floor((utcTarget - utcEpoch) / (1000 * 60 * 60 * 24));
+        const cycleDay = ((diffDays % 4) + 4) % 4;
+        if (cycleDay === 0 || cycleDay === 1) {
+            let mIdx = month - 1;
+            if (cycleDay === 1) {
+                const prevDay = new Date(year, month - 1, day - 1);
+                mIdx = prevDay.getMonth();
+            }
+            return shiftCycle[mIdx] || '';
+        }
+        return '';
+    }
+
+    function calculateTotalClassStats(year, month, daysInMonth) {
+        let grandTotalOt = 0, grandTotalLv = 0, grandTotalUa = 0;
+        employees.forEach(empName => {
+            for (let i = 1; i <= daysInMonth; i++) {
+                const shiftKey = `s4_shift_${year}_${month}_${empName}_${i}`;
+                const defaultShift = getDefaultShift(year, month, i);
+                let val;
+                if (pendingChanges[shiftKey] !== undefined) {
+                    val = pendingChanges[shiftKey];
+                } else {
+                    const savedValue = (cloudData.shifts) ? cloudData.shifts[shiftKey] : undefined;
+                    val = (savedValue !== undefined && savedValue !== null) ? savedValue : defaultShift;
+                }
+                if (val === 'G') grandTotalOt++;
+                if (['特', '病', '事', '生', '返', '差', '曠'].includes(val)) grandTotalLv++;
+                if (val === '未') grandTotalUa++;
+            }
+        });
+        if (totalOtDisplay) totalOtDisplay.textContent = `全班加班: ${grandTotalOt}天`;
+        if (totalLvDisplay) totalLvDisplay.textContent = `全班請假: ${grandTotalLv}天`;
+        if (totalUaDisplay) totalUaDisplay.textContent = `加班未到: ${grandTotalUa}天`;
+    }
+
+    function calculateDailyOtStats(year, month, daysInMonth) {
+        for (let i = 1; i <= daysInMonth; i++) {
+            const defaultShift = getDefaultShift(year, month, i);
+            const dailyElem = document.getElementById(`daily_ot_${year}_${month}_${i}`);
+            
+            if (defaultShift === '日' || defaultShift === '夜') {
+                if (dailyElem) dailyElem.textContent = '';
+                continue;
+            }
+
+            let dailyOtCount = 0;
+            employees.forEach(empName => {
+                const shiftKey = `s4_shift_${year}_${month}_${empName}_${i}`;
+                let val;
+                if (pendingChanges[shiftKey] !== undefined) {
+                    val = pendingChanges[shiftKey];
+                } else {
+                    const savedValue = (cloudData.shifts) ? cloudData.shifts[shiftKey] : undefined;
+                    val = (savedValue !== undefined && savedValue !== null) ? savedValue : defaultShift;
+                }
+                if (val === 'G') {
+                    dailyOtCount++;
+                }
+            });
+            
+            if (dailyElem) {
+                dailyElem.textContent = dailyOtCount;
+            }
+        }
+    }
+
+    function updateConfirmBtnState() {
+        const currentUser = sessionStorage.getItem('s4_current_user');
+        if (currentUser === "陳喬志") {
+            confirmBtn.style.display = 'none';
+            return;
+        }
+
+        const count = Object.keys(pendingChanges).length;
+        confirmBtn.innerHTML = `✔ Confirm / 確認儲存 (${count})`;
+        if (count > 0) {
+            confirmBtn.style.display = 'block';
+            confirmBtn.disabled = false;
+        } else {
+            confirmBtn.style.display = 'none';
+        }
+    }
+
+    function showConfirmModal(message) {
+        return new Promise((resolve) => {
+            confirmModalText.textContent = message;
+            confirmModal.style.display = 'flex';
+
+            confirmModalYes.onclick = function() {
+                confirmModal.style.display = 'none';
+                resolve(true);
+            };
+            confirmModalNo.onclick = function() {
+                confirmModal.style.display = 'none';
+                resolve(false);
+            };
+            confirmModal.onclick = function(e) {
+                if (e.target === this) {
+                    this.style.display = 'none';
+                    resolve(false);
+                }
+            };
+        });
+    }
+
+    modalConfirmBtn.addEventListener('click', function() {
+        successModal.style.display = 'none';
+    });
+    successModal.addEventListener('click', function(e) {
+        if (e.target === this) {
+            this.style.display = 'none';
+        }
+    });
+
+    confirmBtn.addEventListener('click', async function() {
+        const keys = Object.keys(pendingChanges);
+        if (keys.length === 0) return;
+
+        const confirmSave = await showConfirmModal(
+            `Are you sure you want to save the ${keys.length} pending change(s)? / 確定要儲存目前 ${keys.length} 筆異動資料嗎？`
+        );
+        if (!confirmSave) return;
+
+        showSync();
+        confirmBtn.disabled = true;
+
+        try {
+            const promises = [];
+            for (const [key, val] of Object.entries(pendingChanges)) {
+                promises.push(postCloudData({ action: 'saveShift', key: key, value: val }));
+            }
+            await Promise.all(promises);
+
+            for (const [key, val] of Object.entries(pendingChanges)) {
+                cloudData.shifts[key] = val;
+            }
+            pendingChanges = {};
+            
+            document.querySelectorAll('td.pending-edit').forEach(el => {
+                el.classList.remove('pending-edit');
+            });
+            
+            updateConfirmBtnState();
+
+            const year = parseInt(yearSelect.value);
+            const month = parseInt(monthSelect.value);
+            const daysInMonth = new Date(year, month, 0).getDate();
+            employees.forEach(empName => {
+                const otCellId = `ot_${year}_${month}_${empName}`;
+                const lvCellId = `lv_${year}_${month}_${empName}`;
+                calculateStats(empName, year, month, daysInMonth, otCellId, lvCellId);
+            });
+            calculateTotalClassStats(year, month, daysInMonth);
+            calculateDailyOtStats(year, month, daysInMonth);
+            
+            successModal.style.display = 'flex';
+
+        } catch (err) {
+            console.error("儲存異常", err);
+            alert("❌ Data save failed. Please try again later. / 資料儲存失敗，請稍後再試！");
+        } finally {
+            hideSync();
+            confirmBtn.disabled = false;
+        }
+    });
+
+    // ========== 十字高亮狀態追蹤 ==========
+    let crosshairMouseOverHandler = null;
+    let crosshairMouseLeaveHandler = null;
+
+    function clearCrosshairHighlights() {
+        const tbody = document.getElementById('tableBody');
+        const thead = document.getElementById('tableHead');
+        if (tbody) {
+            tbody.querySelectorAll('.active-row').forEach(el => el.classList.remove('active-row'));
+        }
+        if (thead) {
+            thead.querySelectorAll('.active-col').forEach(el => el.classList.remove('active-col'));
+        }
+    }
+
+    function removeCrosshairListeners() {
+        const tbody = document.getElementById('tableBody');
+        if (tbody) {
+            if (crosshairMouseOverHandler) {
+                tbody.removeEventListener('mouseover', crosshairMouseOverHandler);
+                crosshairMouseOverHandler = null;
+            }
+            if (crosshairMouseLeaveHandler) {
+                tbody.removeEventListener('mouseleave', crosshairMouseLeaveHandler);
+                crosshairMouseLeaveHandler = null;
+            }
+        }
+        clearCrosshairHighlights();
+    }
+
+    function adminCrosshairInit() {
+        removeCrosshairListeners();
+
+        const tbody = document.getElementById('tableBody');
+        if (!tbody) return;
+        const thead = document.getElementById('tableHead');
+        if (!thead) return;
+
+        let currentColHeaders = [];
+        let currentRow = null;
+
+        const clearHighlights = () => {
+            if (currentRow) currentRow.classList.remove('active-row');
+            currentColHeaders.forEach(el => el.classList.remove('active-col'));
+            currentColHeaders = [];
+        };
+
+        crosshairMouseOverHandler = function(e) {
+            const td = e.target.closest('td');
+            if (!td) return;
+
+            clearHighlights();
+
+            const tr = td.parentElement;
+            if (tr.classList.contains('daily-ot-row')) return;
+
+            const colIndex = td.cellIndex;
+            currentRow = tr;
+            tr.classList.add('active-row');
+
+            const theadTrs = thead.querySelectorAll('tr');
+            if (theadTrs.length >= 3) {
+                const ths0 = theadTrs[0].querySelectorAll('th');
+                const ths1 = theadTrs[1].querySelectorAll('th');
+                const ths2 = theadTrs[2].querySelectorAll('th');
+                
+                let targetCols = [];
+                
+                if (colIndex === 0) {
+                    if (ths0.length > 0) targetCols.push(ths0[0]);
+                } else if (colIndex === 1) {
+                    if (ths0.length > 1) targetCols.push(ths0[1]);
+                } else if (colIndex === 2) { 
+                    if (ths0.length > 2) targetCols.push(ths0[2]);
+                    if (ths1.length > 0) targetCols.push(ths1[0]);
+                    if (ths2.length > 0) targetCols.push(ths2[0]);
+                } else if (colIndex >= 3) { 
+                    if (ths0.length > colIndex) targetCols.push(ths0[colIndex]);
+                    if (ths1.length > (colIndex - 2)) targetCols.push(ths1[colIndex - 2]);
+                    if (ths2.length > (colIndex - 2)) targetCols.push(ths2[colIndex - 2]);
+                }
+
+                targetCols.forEach(th => {
+                    th.classList.add('active-col');
+                    currentColHeaders.push(th);
+                });
+            }
+        };
+
+        crosshairMouseLeaveHandler = function(e) {
+            clearHighlights();
+        };
+
+        tbody.addEventListener('mouseover', crosshairMouseOverHandler);
+        tbody.addEventListener('mouseleave', crosshairMouseLeaveHandler);
+    }
+
+    crosshairToggle.addEventListener('change', function() {
+        const isEnabled = this.checked;
+        if (!cloudData.settings) cloudData.settings = {};
+        const val = isEnabled ? 'true' : 'false';
+        cloudData.settings['admin_crosshair_enabled'] = val;
+        postCloudData({ action: 'saveSetting', key: 'admin_crosshair_enabled', value: val });
+        renderTable(); 
+    });
+
+    // ========== 跑馬燈文字編輯功能 ==========
+    editTickerBtn.addEventListener('click', function() {
+        const currentText = cloudData.settings && cloudData.settings['ticker_text'] ? cloudData.settings['ticker_text'] : '';
+        tickerInputArea.value = currentText;
+        tickerEditModal.style.display = 'flex';
+    });
+
+    tickerCancelBtn.addEventListener('click', function() {
+        tickerEditModal.style.display = 'none';
+    });
+
+    tickerEditModal.addEventListener('click', function(e) {
+        if (e.target === this) {
+            this.style.display = 'none';
+        }
+    });
+
+    tickerSaveBtn.addEventListener('click', async function() {
+        const newText = tickerInputArea.value.trim();
+        if (!cloudData.settings) cloudData.settings = {};
+        
+        cloudData.settings['ticker_text'] = newText;
+        await postCloudData({ action: 'saveSetting', key: 'ticker_text', value: newText });
+        
+        tickerEditModal.style.display = 'none';
+        renderTable(); 
+    });
+
+    // ========== 管理人員清單功能 (核心) ==========
+    function openEmployeeEditModal() {
+        renderEmployeeListUI();
+        employeeEditModal.style.display = 'flex';
+    }
+
+    function renderEmployeeListUI() {
+        employeeListContainer.innerHTML = '';
+        employees.forEach((name, index) => {
+            const div = document.createElement('div');
+            div.className = 'emp-item';
+            
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'emp-name';
+            nameSpan.textContent = name;
+            
+            // 點擊姓名直接觸發修改
+            nameSpan.addEventListener('click', function() {
+                const newName = prompt(`Edit name for "${name}" / 修改姓名:`, name);
+                if (newName && newName.trim() !== '' && newName.trim() !== name) {
+                    if (employees.includes(newName.trim())) {
+                        alert("This name already exists! / 此姓名已存在！");
+                        return;
+                    }
+                    employees[index] = newName.trim();
+                    renderEmployeeListUI(); // 刷新清單
+                }
+            });
+
+            const actionsDiv = document.createElement('div');
+            actionsDiv.className = 'emp-actions';
+            
+            // 刪除按鈕
+            const delBtn = document.createElement('button');
+            delBtn.className = 'del-btn';
+            delBtn.innerHTML = '🗑️';
+            delBtn.title = "Delete / 刪除";
+            delBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (confirm(`Are you sure you want to delete "${name}"? / 確定要刪除 "${name}" 嗎？`)) {
+                    employees.splice(index, 1);
+                    renderEmployeeListUI(); // 刷新清單
+                }
+            });
+
+            actionsDiv.appendChild(delBtn);
+            div.appendChild(nameSpan);
+            div.appendChild(actionsDiv);
+            employeeListContainer.appendChild(div);
+        });
+    }
+
+    addEmployeeBtn.addEventListener('click', function() {
+        const newName = newEmployeeInput.value.trim();
+        if (!newName) {
+            alert("Please input a name! / 請輸入姓名！");
+            return;
+        }
+        if (employees.includes(newName)) {
+            alert("This name already exists! / 此姓名已存在！");
+            newEmployeeInput.value = '';
+            return;
+        }
+        employees.push(newName);
+        newEmployeeInput.value = '';
+        renderEmployeeListUI();
+    });
+
+    // Enter 鍵觸發新增
+    newEmployeeInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            addEmployeeBtn.click();
+        }
+    });
+
+    employeeSaveBtn.addEventListener('click', async function() {
+        // 過濾與防呆
+        if (employees.length === 0) {
+            alert("List cannot be empty! / 名單不能為空！");
+            return;
+        }
+        if (!cloudData.settings) cloudData.settings = {};
+        const serialized = JSON.stringify(employees);
+        cloudData.settings['employee_list'] = serialized;
+        
+        await postCloudData({ action: 'saveSetting', key: 'employee_list', value: serialized });
+        employeeEditModal.style.display = 'none';
+        
+        updateLoginSelect(); // 更新登入下拉選單
+        renderTable(); // 重新渲染排班表
+        alert("Staff list updated successfully! / 人員名單已更新！");
+    });
+
+    editEmployeeBtn.addEventListener('click', openEmployeeEditModal);
+    // ================================================
+
+    function renderTable() {
+        const currentUser = sessionStorage.getItem('s4_current_user');
+        if (!currentUser) return;
+
+        const isAdmin = (currentUser === "陳喬志");
+
+        updateFormStatusUI();
+        const formOpen = isFormOpen();
+
+        if (isAdmin) {
+            otLimitSelect.style.display = 'inline-block';
+            otLimitSelect.disabled = !formOpen;
+        } else {
+            otLimitSelect.style.display = 'none';
+        }
+
+        const year = parseInt(yearSelect.value);
+        const month = parseInt(monthSelect.value);
+        const daysInMonth = new Date(year, month, 0).getDate();
+
+        const limitKey = `${year}_${month}`;
+        otLimitSelect.value = (cloudData.otLimits && cloudData.otLimits[limitKey] !== undefined) ? cloudData.otLimits[limitKey] : '';
+
+        const thead = document.getElementById('tableHead');
+        const tbody = document.getElementById('tableBody');
+        thead.innerHTML = ''; tbody.innerHTML = '';
+
+        let trMark = document.createElement('tr');
+        trMark.innerHTML = `
+            <th class="col-stats stats-ot" rowspan="3"><div class="cell-content">當月<br>加班</div></th>
+            <th class="col-stats stats-lv" rowspan="3"><div class="cell-content">當月<br>請假</div></th>
+            <th class="col-name"><div class="cell-content">S4</div></th>
+        `;
+        let trDate = document.createElement('tr');
+        trDate.innerHTML = `<th class="col-name"><div class="cell-content">日期</div></th>`;
+        let trDay = document.createElement('tr');
+        trDay.innerHTML = `<th class="col-name"><div class="cell-content">星期</div></th>`;
+
+        const today = new Date();
+        const todayY = today.getFullYear();
+        const todayM = today.getMonth() + 1;
+        const todayD = today.getDate();
+
+        for (let i = 1; i <= daysInMonth; i++) {
+            const markKey = `${year}_${month}_${i}`;
+            const dateObj = new Date(year, month - 1, i);
+            const dayOfWeek = dateObj.getDay();
+            const isToday = (year === todayY && month === todayM && i === todayD);
+
+            let thMark = document.createElement('th');
+            let selectMark = document.createElement('select');
+            selectMark.className = 'daily-mark-select';
+            const markOptions = ['', 'C', '換', '颱', '豪', '歲', '旺'];
+            markOptions.forEach(opt => {
+                let option = document.createElement('option');
+                option.value = opt;
+                option.textContent = opt;
+                selectMark.appendChild(option);
+            });
+            const currentMark = cloudData.dailyMarks[markKey] || '';
+            selectMark.value = currentMark;
+            if (!isAdmin) {
+                selectMark.disabled = true;
+            }
+            selectMark.addEventListener('change', function() {
+                const newMark = this.value;
+                cloudData.dailyMarks[markKey] = newMark;
+                saveDailyMarks(); 
+            });
+            thMark.appendChild(selectMark);
+            trMark.appendChild(thMark);
+
+            let thDate = document.createElement('th');
+            thDate.innerHTML = `<div class="cell-content">${i}</div>`;
+            if (isToday) thDate.classList.add('today-header');
+            trDate.appendChild(thDate);
+
+            let thDay = document.createElement('th');
+            thDay.innerHTML = `<div class="cell-content">${weekDaysTW[dayOfWeek]}</div>`;
+            if (dayOfWeek === 0 || dayOfWeek === 6) thDay.classList.add('weekend-header');
+            if (isToday) thDay.classList.add('today-header');
+            trDay.appendChild(thDay);
+        }
+
+        thead.appendChild(trMark);
+        thead.appendChild(trDate);
+        thead.appendChild(trDay);
+
+        const visibleEmployees = isAdmin
+            ? employees
+            : employees.filter(emp => emp === currentUser);
+
+        visibleEmployees.forEach(empName => {
+            let tr = document.createElement('tr');
+            const otCellId = `ot_${year}_${month}_${empName}`;
+            const lvCellId = `lv_${year}_${month}_${empName}`;
+            tr.innerHTML = `
+                <td class="stats-ot"><div class="cell-content" id="${otCellId}">0</div></td>
+                <td class="stats-lv"><div class="cell-content" id="${lvCellId}">0</div></td>
+                <td class="col-name"><div class="cell-content">${empName}</div></td>
+            `;
+
+            for (let i = 1; i <= daysInMonth; i++) {
+                let td = document.createElement('td');
+                const defaultShift = getDefaultShift(year, month, i);
+                const shiftKey = `s4_shift_${year}_${month}_${empName}_${i}`;
+                const savedValue = (cloudData.shifts) ? cloudData.shifts[shiftKey] : undefined;
+                let finalValue = (savedValue !== undefined && savedValue !== null) ? savedValue : defaultShift;
+                if (pendingChanges[shiftKey] !== undefined) {
+                    finalValue = pendingChanges[shiftKey];
+                }
+
+                let select = document.createElement('select');
+                select.className = 'shift-select';
+                if (!formOpen) {
+                    select.disabled = true;
+                }
+
+                let baseOptions;
+                if (defaultShift === '') {
+                    baseOptions = isAdmin ? ['', 'G', '未'] : ['', 'G'];
+                } else {
+                    baseOptions = [defaultShift, '特', '病', '事', '生', '颱', '返', '差', '曠'];
+                }
+
+                if (finalValue !== '' && !baseOptions.includes(finalValue)) {
+                    if (isAdmin) {
+                        baseOptions.push(finalValue);
+                    } else {
+                        finalValue = defaultShift || '';
+                    }
+                }
+
+                baseOptions.forEach(opt => {
+                    let option = document.createElement('option');
+                    option.value = opt;
+                    option.textContent = opt;
+                    if (opt === finalValue) option.selected = true;
+                    select.appendChild(option);
+                });
+
+                select.addEventListener('change', function() {
+                    if (!isFormOpen()) {
+                        alert("目前填表已關閉，無法修改班表！");
+                        this.value = finalValue;
+                        return;
+                    }
+                    const newVal = this.value;
+                    const limitVal = otLimitSelect.value;
+                    if (newVal === 'G' && defaultShift === '' && limitVal !== '') {
+                        const limit = parseInt(limitVal, 10);
+                        let otherOtCount = 0;
+                        employees.forEach(otherEmp => {
+                            if (otherEmp === empName) return;
+                            const key = `s4_shift_${year}_${month}_${otherEmp}_${i}`;
+                            const def = getDefaultShift(year, month, i);
+                            let val;
+                            if (pendingChanges[key] !== undefined) {
+                                val = pendingChanges[key];
+                            } else {
+                                const saved = (cloudData.shifts && cloudData.shifts[key] !== undefined) ? cloudData.shifts[key] : def;
+                                val = saved;
+                            }
+                            if (val === 'G') otherOtCount++;
+                        });
+                        if (otherOtCount >= limit) {
+                            alert(`${month}月${i}日 (非上班日) 加班人數已達上限 (${limit} 人)！`);
+                            this.value = finalValue;
+                            return;
+                        }
+                    }
+
+                    if (isAdmin) {
+                        if (!cloudData.shifts) cloudData.shifts = {};
+                        cloudData.shifts[shiftKey] = newVal;
+                        postCloudData({ action: 'saveShift', key: shiftKey, value: newVal });
+
+                        finalValue = newVal;
+                        updateCellColor(td, newVal);
+                        calculateStats(empName, year, month, daysInMonth, otCellId, lvCellId);
+                        calculateTotalClassStats(year, month, daysInMonth);
+                        calculateDailyOtStats(year, month, daysInMonth);
+                    } else {
+                        pendingChanges[shiftKey] = newVal;
+                        finalValue = newVal;
+                        td.classList.add('pending-edit');
+                        updateCellColor(td, newVal);
+                        calculateStats(empName, year, month, daysInMonth, otCellId, lvCellId);
+                        calculateTotalClassStats(year, month, daysInMonth);
+                        calculateDailyOtStats(year, month, daysInMonth);
+                        updateConfirmBtnState();
+                    }
+                });
+
+                td.appendChild(select);
+                if (pendingChanges[shiftKey] !== undefined) {
+                    td.classList.add('pending-edit');
+                }
+                updateCellColor(td, finalValue);
+                tr.appendChild(td);
+            }
+            tbody.appendChild(tr);
+            calculateStats(empName, year, month, daysInMonth, otCellId, lvCellId);
+        });
+
+        let trDailyOt = document.createElement('tr');
+        trDailyOt.className = 'daily-ot-row';
+        trDailyOt.innerHTML = `
+            <td class="stats-ot"><div class="cell-content">-</div></td>
+            <td class="stats-lv"><div class="cell-content">-</div></td>
+            <td class="col-name"><div class="cell-content">加班人數</div></td>
+        `;
+        for (let i = 1; i <= daysInMonth; i++) {
+            let td = document.createElement('td');
+            td.innerHTML = `<div class="cell-content" id="daily_ot_${year}_${month}_${i}"></div>`;
+            trDailyOt.appendChild(td);
+        }
+        tbody.appendChild(trDailyOt);
+
+        calculateTotalClassStats(year, month, daysInMonth);
+        calculateDailyOtStats(year, month, daysInMonth);
+        
+        // ============ 渲染完畢決定按鈕與開關、跑馬燈顯示 ============
+        if (isAdmin) {
+            confirmBtn.style.display = 'none';
+            crosshairControl.style.display = 'flex';
+            editTickerBtn.style.display = 'inline-block';
+            editEmployeeBtn.style.display = 'inline-block'; // 管理員才能看到"管理人員"按鈕
+            
+            const isEnabled = cloudData.settings && cloudData.settings['admin_crosshair_enabled'] === 'true';
+            crosshairToggle.checked = isEnabled;
+
+            if (isEnabled) {
+                adminCrosshairInit();
+            } else {
+                removeCrosshairListeners();
+            }
+        } else {
+            confirmBtn.style.display = 'none';
+            crosshairControl.style.display = 'none';
+            editTickerBtn.style.display = 'none';
+            editEmployeeBtn.style.display = 'none'; // 一般員工看不見
+            removeCrosshairListeners();
+        }
+
+        // ============ 跑馬燈渲染 ============
+        if (cloudData.settings && cloudData.settings['ticker_text']) {
+            const textContent = cloudData.settings['ticker_text'];
+            tickerTextEl.textContent = textContent;
+            tickerContainer.style.display = 'block';
+
+            tickerTextEl.style.animation = 'none';
+            tickerTextEl.offsetHeight;
+            tickerTextEl.style.animation = `scrollText 35s linear infinite`;
+        } else {
+            tickerContainer.style.display = 'none';
+        }
+        // =================================
+    }
+
+    function calculateStats(empName, year, month, daysInMonth, otCellId, lvCellId) {
+        let otCount = 0;
+        let lvCount = 0;
+        for (let i = 1; i <= daysInMonth; i++) {
+            const shiftKey = `s4_shift_${year}_${month}_${empName}_${i}`;
+            const defaultShift = getDefaultShift(year, month, i);
+            let val;
+            if (pendingChanges[shiftKey] !== undefined) {
+                val = pendingChanges[shiftKey];
+            } else {
+                const savedValue = (cloudData.shifts) ? cloudData.shifts[shiftKey] : undefined;
+                val = (savedValue !== undefined && savedValue !== null) ? savedValue : defaultShift;
+            }
+            if (val === 'G') otCount++;
+            if (['特', '病', '事', '生', '返', '差', '曠'].includes(val)) lvCount++;
+        }
+        const otElem = document.getElementById(otCellId);
+        const lvElem = document.getElementById(lvCellId);
+        if (otElem) otElem.textContent = otCount;
+        if (lvElem) lvElem.textContent = lvCount;
+    }
+
+    function updateCellColor(td, value) {
+        td.classList.remove('shift-day', 'shift-night', 'shift-g', 'shift-unattended', 'shift-special', 'shift-personal', 'shift-sick', 'shift-physio', 'shift-typhoon', 'shift-return', 'shift-trip', 'shift-absent');
+        switch (value) {
+            case '日': td.classList.add('shift-day'); break;
+            case '夜': td.classList.add('shift-night'); break;
+            case 'G': td.classList.add('shift-g'); break;
+            case '未': td.classList.add('shift-unattended'); break;
+            case '特': td.classList.add('shift-special'); break;
+            case '事': td.classList.add('shift-personal'); break;
+            case '病': td.classList.add('shift-sick'); break;
+            case '生': td.classList.add('shift-physio'); break;
+            case '颱': td.classList.add('shift-typhoon'); break;
+            case '返': td.classList.add('shift-return'); break;
+            case '差': td.classList.add('shift-trip'); break;
+            case '曠': td.classList.add('shift-absent'); break;
+        }
+    }
+
+    yearSelect.addEventListener('change', renderTable);
+    monthSelect.addEventListener('change', renderTable);
+
+    checkLoginStatus();
+</script>
+<!-- === 浮動返回首頁按鈕 === -->
+<a href="../" class="back-home-btn">🏠 返回首頁</a>
+
+<style>
+  .back-home-btn {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 99999;
+    background: rgba(15, 23, 42, 0.9); /* 深色半透明背景 */
+    color: #ffffff;
+    padding: 10px 16px;
+    border-radius: 30px;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    backdrop-filter: blur(4px); /* 模糊背景效果 */
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+  }
+
+  /* 手機按壓時的縮放回饋 */
+  .back-home-btn:active {
+    transform: scale(0.92);
+    background: #0f172a;
+  }
+</style>
+</body>
+</html>
