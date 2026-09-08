@@ -146,7 +146,6 @@
             box-sizing: border-box;
             border-bottom: 2px solid #e0e0e0; /* 加上分隔線，清楚辨識固定區 */
         }
-        /* ======================================= */
 
         .left-controls, .right-controls {
             display: flex;
@@ -207,12 +206,11 @@
         /* ========== 優化 2：當填表關閉時，下拉選單保持正常外觀，僅不可點擊 ========== */
         select:disabled {
             background-color: transparent !important;   /* 移除灰色背景 */
-            color: inherit !important;                 /* 字體顏色保持原本狀態 (黑或白) */
-            cursor: default !important;                /* 滑鼠游標保持普通樣式，不變為禁止符號 */
-            opacity: 1 !important;                     /* 完全不透明 */
+            color: inherit !important;                  /* 字體顏色保持原本狀態 (黑或白) */
+            cursor: default !important;                 /* 滑鼠游標保持普通樣式，不變為禁止符號 */
+            opacity: 1 !important;                      /* 完全不透明 */
             -webkit-text-fill-color: unset !important; /* 防止部分瀏覽器強制改字色 */
         }
-        /* ====================================================================== */
 
         .user-info {
             font-size: 13px;
@@ -365,7 +363,6 @@
             -webkit-overflow-scrolling: touch;
             margin-top: 5px; /* 與上方固定列的間距 */
         }
-        /* ============================================ */
 
         table {
             border-collapse: separate;
@@ -619,6 +616,7 @@
             transition: background 0.2s;
         }
         .emp-item .emp-actions .edit-btn:hover { background: #e2e6ea; }
+        .emp-item .emp-actions .reset-pwd-btn:hover { background: #fff3cd; color: #856404; }
         .emp-item .emp-actions .del-btn:hover { background: #f8d7da; color: #dc3545; }
         
         #employeeAddBox {
@@ -735,7 +733,7 @@
 <div id="employeeEditModal" class="custom-modal-overlay">
     <div class="custom-modal-box">
         <h3>Manage Staff / 管理人員</h3>
-        <p>Click name to edit, click trash to delete.<br>點擊姓名可修改，點擊垃圾桶可刪除。</p>
+        <p>Click name to edit, 🔑 to reset pwd, 🗑️ to delete.<br>點擊姓名可修改，點擊鑰匙可重置密碼，點擊垃圾桶可刪除。</p>
         <div id="employeeListContainer"></div>
         <div id="employeeAddBox">
             <input type="text" id="newEmployeeInput" placeholder="Add name / 輸入新姓名...">
@@ -821,16 +819,11 @@
 
 <script>
     // ===== 雲端後端：Supabase =====
-    // 請填入你自己 Supabase 專案的 URL 與 anon public key
-    // (Supabase 專案首頁 -> Project Settings -> API)
-    // 這裡沿用跟「捲繞排班(S1~S4)」同一個 Supabase 專案／同一組資料表
-    // (shifts / passwords / ot_limits / settings)，兩個頁面資料是共用的
-    const SUPABASE_URL = "https://nufuhsucldfrrknmokdu.supabase.co";       // 例如 https://xxxxxxxxxxxx.supabase.co
-    const SUPABASE_ANON_KEY = "sb_publishable_AjX0UqKNIs9rSxc395aO1w_HFSeaxjz";     // 例如 eyJhbGciOi...
+    const SUPABASE_URL = "https://nufuhsucldfrrknmokdu.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_AjX0UqKNIs9rSxc395aO1w_HFSeaxjz";
 
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    // 將原本的 const 改為 let，並從雲端讀取
     let employees = [
         "陳喬志", "楊代億", "廖曉彤", "蔡靜儀", "賴建亦", "施榮傑",
         "陰其德", "黃譯鋒", "楊雅婷", "羅啟倫", "埃爾默", "拉斯特",
@@ -967,7 +960,6 @@
                     employees = [...defaultEmployees];
                 }
             } else {
-                // 如果雲端沒有此設定，建立預設值並儲存
                 if (!cloudData.settings) cloudData.settings = {};
                 cloudData.settings['employee_list'] = JSON.stringify(employees);
                 postCloudData({ action: 'saveSetting', key: 'employee_list', value: JSON.stringify(employees) });
@@ -1462,7 +1454,7 @@
         renderTable(); 
     });
 
-    // ========== 管理人員清單功能 (核心) ==========
+    // ========== 管理人員清單功能 (含密碼重置) ==========
     function openEmployeeEditModal() {
         renderEmployeeListUI();
         employeeEditModal.style.display = 'flex';
@@ -1482,11 +1474,12 @@
             nameSpan.addEventListener('click', function() {
                 const newName = prompt(`Edit name for "${name}" / 修改姓名:`, name);
                 if (newName && newName.trim() !== '' && newName.trim() !== name) {
-                    if (employees.includes(newName.trim())) {
+                    const trimmedName = newName.trim();
+                    if (employees.includes(trimmedName)) {
                         alert("This name already exists! / 此姓名已存在！");
                         return;
                     }
-                    employees[index] = newName.trim();
+                    employees[index] = trimmedName;
                     renderEmployeeListUI(); // 刷新清單
                 }
             });
@@ -1494,6 +1487,21 @@
             const actionsDiv = document.createElement('div');
             actionsDiv.className = 'emp-actions';
             
+            // 重置密碼按鈕
+            const resetPwdBtn = document.createElement('button');
+            resetPwdBtn.className = 'reset-pwd-btn';
+            resetPwdBtn.innerHTML = '🔑';
+            resetPwdBtn.title = "Reset Password to 0000 / 重置密碼為 0000";
+            resetPwdBtn.addEventListener('click', async function(e) {
+                e.stopPropagation();
+                if (confirm(`Are you sure you want to reset password for "${name}" to "0000"? / 確定要將 "${name}" 的密碼重置為預設 "0000" 嗎？`)) {
+                    if (!cloudData.passwords) cloudData.passwords = {};
+                    cloudData.passwords[name] = "0000";
+                    await postCloudData({ action: 'savePassword', key: name, value: "0000" });
+                    alert(`Password for "${name}" has been reset to "0000"! / "${name}" 的密碼已成功重置為 "0000"！`);
+                }
+            });
+
             // 刪除按鈕
             const delBtn = document.createElement('button');
             delBtn.className = 'del-btn';
@@ -1507,6 +1515,7 @@
                 }
             });
 
+            actionsDiv.appendChild(resetPwdBtn);
             actionsDiv.appendChild(delBtn);
             div.appendChild(nameSpan);
             div.appendChild(actionsDiv);
@@ -1538,7 +1547,6 @@
     });
 
     employeeSaveBtn.addEventListener('click', async function() {
-        // 過濾與防呆
         if (employees.length === 0) {
             alert("List cannot be empty! / 名單不能為空！");
             return;
@@ -1785,7 +1793,7 @@
             confirmBtn.style.display = 'none';
             crosshairControl.style.display = 'flex';
             editTickerBtn.style.display = 'inline-block';
-            editEmployeeBtn.style.display = 'inline-block'; // 管理員才能看到"管理人員"按鈕
+            editEmployeeBtn.style.display = 'inline-block';
             
             const isEnabled = cloudData.settings && cloudData.settings['admin_crosshair_enabled'] === 'true';
             crosshairToggle.checked = isEnabled;
@@ -1799,7 +1807,7 @@
             confirmBtn.style.display = 'none';
             crosshairControl.style.display = 'none';
             editTickerBtn.style.display = 'none';
-            editEmployeeBtn.style.display = 'none'; // 一般員工看不見
+            editEmployeeBtn.style.display = 'none';
             removeCrosshairListeners();
         }
 
@@ -1815,7 +1823,6 @@
         } else {
             tickerContainer.style.display = 'none';
         }
-        // =================================
     }
 
     function calculateStats(empName, year, month, daysInMonth, otCellId, lvCellId) {
@@ -1863,35 +1870,5 @@
 
     checkLoginStatus();
 </script>
-<!-- === 浮動返回首頁按鈕 === -->
-<a href="../" class="back-home-btn">🏠 首頁</a>
-
-<style>
-  .back-home-btn {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    z-index: 99999;
-    background: rgba(15, 23, 42, 0.9); /* 深色半透明背景 */
-    color: #ffffff;
-    padding: 10px 16px;
-    border-radius: 30px;
-    text-decoration: none;
-    font-size: 14px;
-    font-weight: 600;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-    backdrop-filter: blur(4px); /* 模糊背景效果 */
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    transition: all 0.2s ease;
-  }
-
-  /* 手機按壓時的縮放回饋 */
-  .back-home-btn:active {
-    transform: scale(0.92);
-    background: #0f172a;
-  }
-</style>
 </body>
 </html>
