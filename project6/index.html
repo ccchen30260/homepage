@@ -3,9 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>微米緊湊型表格與範本管理系統</title>
+  <title>微米緊湊型表格與範本管理系統 (支援 Excel 匯入)</title>
   <!-- 載入 Supabase JS SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- 載入 SheetJS (Excel 檔案解析庫) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
     body { font-family: "Microsoft JhengHei", Arial, sans-serif; margin: 4px; background-color: #f4f6f9; color: #333; font-size: 11px; }
     .container { max-width: 100%; margin: 0 auto; background: #fff; padding: 6px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
@@ -54,13 +56,17 @@
 <body>
 
 <div class="container">
-  <!-- 1. 範本管理區 -->
+  <!-- 1. 範本管理與檔案匯入區 -->
   <div class="toolbar-group">
-    <label>範本：</label>
+    <label>範本/檔案：</label>
     <select id="templateSelect"><option value="">-- 讀取中 --</option></select>
     <button class="primary" onclick="useTemplateFullScreen()">🚀 全螢幕使用/編輯</button>
     <button onclick="loadTemplateForEdit()">✏️ 載入主頁編輯</button>
     <button class="danger" onclick="deleteTemplate()">🗑️ 刪除範本</button>
+    <span style="color:#ccc;">|</span>
+    <!-- Excel 檔案匯入按鈕與隱藏的 input -->
+    <input type="file" id="excelFileInput" accept=".xlsx, .xls, .csv" style="display:none;" onchange="handleExcelImport(event)">
+    <button class="success" onclick="document.getElementById('excelFileInput').click()">📂 匯入 Excel/CSV</button>
     <span style="color:#ccc;">|</span>
     <input type="text" id="templateName" placeholder="新範本名稱" style="width:90px;">
     <button class="success" onclick="saveTemplate()">💾 儲存範本</button>
@@ -180,8 +186,8 @@
   /* ----------------------------------------------------
      Supabase 雲端設定區 (若填寫正確將自動開啟雲端同步)
   ---------------------------------------------------- */
-  const SUPABASE_URL = 'https://fujxiabyxqzygtxyalol.supabase.co'; 
-  const SUPABASE_ANON_KEY = 'sb_publishable_jjMV0mndB2do5uV4S8W8_w_r3LUSZIf';
+  const SUPABASE_URL = 'YOUR_SUPABASE_URL'; 
+  const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
   
   let supabaseClient = null;
   let isCloudEnabled = false;
@@ -208,6 +214,85 @@
         console.warn('Supabase 未正確設定，自動開啟本機模式。');
       }
     }
+  }
+
+  /* --- Excel/CSV 檔案匯入解析邏輯 --- */
+  function handleExcelImport(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        
+        // 預設抓取第一個工作表 (Sheet)
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        
+        // 將工作表轉換為二維陣列 (含空白格)
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        
+        if (!jsonData || jsonData.length === 0) {
+          alert('匯入的檔案內沒有可讀取的資料！');
+          return;
+        }
+
+        // 計算最大欄數，確保表格齊整
+        let maxCols = 0;
+        jsonData.forEach(row => {
+          if (row.length > maxCols) maxCols = row.length;
+        });
+
+        if (maxCols === 0) {
+          alert('匯入的檔案內容為空！');
+          return;
+        }
+
+        // 第一列做為標題列
+        const headerRowArr = jsonData[0] || [];
+        const headers = [];
+        for (let i = 0; i < maxCols; i++) {
+          const val = headerRowArr[i];
+          headers.push({
+            text: (val !== undefined && val !== null) ? String(val) : `欄 ${i + 1}`,
+            style: 'width: 80px;',
+            colSpan: 1,
+            rowSpan: 1
+          });
+        }
+
+        // 剩餘列做為資料列
+        const rows = [];
+        for (let r = 1; r < jsonData.length; r++) {
+          const rowArr = jsonData[r] || [];
+          const cells = [];
+          for (let c = 0; c < maxCols; c++) {
+            const val = rowArr[c];
+            cells.push({
+              text: (val !== undefined && val !== null) ? String(val) : '',
+              style: '',
+              colSpan: 1,
+              rowSpan: 1
+            });
+          }
+          rows.push({ cells });
+        }
+
+        // 渲染至畫面的主表格中
+        renderTableFromData(document.getElementById('dataTable'), { headers, rows }, true);
+        bindTableEvents(document.getElementById('dataTable'));
+
+        alert(`成功匯入檔案「${file.name}」！`);
+      } catch (err) {
+        console.error(err);
+        alert('解析 Excel/CSV 檔案失敗，請確認檔案格式是否正確。');
+      } finally {
+        event.target.value = ''; // 重置 file input 允許重複匯入同名檔案
+      }
+    };
+    reader.readAsArrayBuffer(file);
   }
 
   /* --- 範本存取雙模介面 --- */
@@ -592,7 +677,6 @@
     }
   }
 
-  /* 清空表格文字 (完整保留行列結構與標題列) */
   function clearAllTableData() {
     if (confirm('確定要清空所有表格內的文字資料嗎？（將完整保留所有列與欄位）')) {
       document.querySelectorAll('#tableBody td').forEach(td => td.innerText = '');
@@ -680,35 +764,6 @@
     document.getElementById('fullscreenOverlay').style.display = 'none';
   }
 </script>
-    <!-- === 浮動返回首頁按鈕 === -->
-<a href="../" class="back-home-btn">🏠 首頁</a>
 
-<style>
-  .back-home-btn {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    z-index: 99999;
-    background: rgba(15, 23, 42, 0.9); /* 深色半透明背景 */
-    color: #ffffff;
-    padding: 10px 16px;
-    border-radius: 30px;
-    text-decoration: none;
-    font-size: 14px;
-    font-weight: 600;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-    backdrop-filter: blur(4px); /* 模糊背景效果 */
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    transition: all 0.2s ease;
-  }
-
-  /* 手機按壓時的縮放回饋 */
-  .back-home-btn:active {
-    transform: scale(0.92);
-    background: #0f172a;
-  }
-</style>
 </body>
 </html>
