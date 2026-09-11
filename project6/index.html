@@ -680,5 +680,35 @@
 
     checkAuth();
   </script>
+      <!-- === 浮動返回首頁按鈕 === -->
+<a href="../" class="back-home-btn">🏠 首頁</a>
+
+<style>
+  .back-home-btn {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 99999;
+    background: rgba(15, 23, 42, 0.9); /* 深色半透明背景 */
+    color: #ffffff;
+    padding: 10px 16px;
+    border-radius: 30px;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    backdrop-filter: blur(4px); /* 模糊背景效果 */
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+  }
+
+  /* 手機按壓時的縮放回饋 */
+  .back-home-btn:active {
+    transform: scale(0.92);
+    background: #0f172a;
+  }
+</style>
 </body>
 </html>
