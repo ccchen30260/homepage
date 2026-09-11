@@ -11,7 +11,7 @@
   <!-- Supabase JS SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-  <!-- 🌟 表格與富文字專用 CSS (覆蓋 Tailwind 預設並優化貼上表格樣式) -->
+  <!-- 🌟 表格、富文字與左側獨立滾動條專用 CSS -->
   <style>
     .rich-content table {
       border-collapse: collapse !important;
@@ -30,14 +30,28 @@
       background-color: #f1f5f9 !important;
       font-weight: 600 !important;
     }
-    /* 表格在手機端超出時可橫向滾動 */
     .rich-content {
       overflow-x: auto;
     }
-    /* Contenteditable Placeholder 提示字 */
     #docContent:empty:before {
       content: attr(placeholder);
       color: #94a3b8;
+    }
+
+    /* 自訂左側表單區塊滾動條（精細美化） */
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 5px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #f1f5f9;
+      border-radius: 8px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 8px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
     }
   </style>
 </head>
@@ -90,8 +104,8 @@
   <!-- 主內容區 -->
   <main class="max-w-7xl mx-auto px-4 py-4 sm:py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-    <!-- 左側：新增文件表單 -->
-    <section class="lg:col-span-4 bg-white p-5 sm:p-6 rounded-xl shadow-sm border border-slate-200 h-fit lg:sticky lg:top-20">
+    <!-- 🌟 左側：新增文件表單 (電腦版設定獨立固定與獨立滾動) -->
+    <section class="lg:col-span-4 bg-white p-5 sm:p-6 rounded-xl shadow-sm border border-slate-200 lg:sticky lg:top-[68px] lg:max-h-[calc(100vh-85px)] lg:overflow-y-auto custom-scrollbar shrink-0">
       <h2 class="text-lg font-bold mb-4 flex items-center text-indigo-600 border-b pb-2">
         <i class="fa-solid fa-plus-circle mr-2"></i> 新增文件項目
       </h2>
@@ -114,15 +128,14 @@
           <input type="text" id="docTitle" required placeholder="例如：2026年第二季部門會議紀錄" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
         </div>
 
-        <!-- 🌟 富文字/表格貼上區塊 -->
         <div>
           <div class="flex justify-between items-center mb-1">
-            <label class="block text-sm font-semibold text-slate-700">內容說明 <span class="text-xs font-normal text-indigo-600">(可貼上 Excel/Word 表格)</span></label>
+            <label class="block text-sm font-semibold text-slate-700">內容說明 <span class="text-xs font-normal text-indigo-600">(可貼 Excel/Word 表格)</span></label>
             <button type="button" onclick="document.getElementById('docContent').innerHTML=''" class="text-xs text-slate-400 hover:text-red-500">
-              <i class="fa-solid fa-eraser"></i> 清空內容
+              <i class="fa-solid fa-eraser"></i> 清空
             </button>
           </div>
-          <div id="docContent" contenteditable="true" placeholder="請輸入內文，或直接複製貼上 Excel / Word 表格..." class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none min-h-[140px] max-h-[300px] overflow-y-auto bg-white rich-content"></div>
+          <div id="docContent" contenteditable="true" placeholder="請輸入內文，或直接複製貼上 Excel / Word 表格..." class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none min-h-[130px] max-h-[260px] overflow-y-auto bg-white rich-content"></div>
         </div>
 
         <div>
@@ -144,8 +157,8 @@
       </form>
     </section>
 
-    <!-- 右側：快速查詢與資料清單 -->
-    <section class="lg:col-span-8 space-y-4">
+    <!-- 右側：快速查詢與資料清單 (獨立滑動區) -->
+    <section class="lg:col-span-8 space-y-4 min-w-0">
       
       <!-- 搜尋與分類篩選工具列 -->
       <div class="sticky top-[52px] sm:top-[58px] z-20 bg-slate-100/95 backdrop-blur-md pt-2 pb-3 -mx-4 px-4 sm:mx-0 sm:px-0 sm:py-0 sm:bg-transparent">
@@ -483,7 +496,6 @@
 
       const category = docCategorySelect.value;
       const title = document.getElementById('docTitle').value.trim();
-      // 🌟 讀取含 HTML 表格的富文字內容
       const content = document.getElementById('docContent').innerHTML.trim();
       const photoFile = docPhotoInput.files[0];
       const attachmentFile = document.getElementById('docFile').files[0];
@@ -509,7 +521,7 @@
         if (error) throw error;
 
         docForm.reset();
-        document.getElementById('docContent').innerHTML = ''; // 清空富文字框
+        document.getElementById('docContent').innerHTML = '';
         photoPreview.classList.add('hidden');
         await loadAndRenderDocs();
       } catch (err) {
@@ -533,7 +545,6 @@
 
       const filtered = allDocs.filter(doc => {
         const matchCat = selectedCat === 'ALL' || doc.category === selectedCat;
-        // 過濾搜尋時，移除 HTML 標籤比對純文字內容
         const textOnlyContent = doc.content ? doc.content.replace(/<[^>]*>/g, '') : '';
         const matchSearch = !query || 
           doc.title.toLowerCase().includes(query) || 
@@ -560,7 +571,6 @@
           year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
         });
 
-        // 🌟 直接渲染 HTML 表格內文，並允許水平滾動
         const formattedContent = doc.content && doc.content.trim() !== ''
           ? `<div class="rich-content overflow-x-auto text-sm text-slate-700 leading-relaxed">${doc.content}</div>`
           : '<span class="text-slate-400 italic">無內文說明</span>';
@@ -616,7 +626,7 @@
       }).join('');
     }
 
-    // 🌟 手機相容新視窗獨立閱讀頁 (包含表格樣式)
+    // 🌟 手機相容新視窗獨立閱讀頁
     window.openDocInNewWindow = function(id) {
       const doc = allDocs.find(d => d.id === id);
       if (!doc) return;
@@ -741,35 +751,5 @@
 
     checkAuth();
   </script>
-     <!-- === 浮動返回首頁按鈕 === -->
-<a href="../" class="back-home-btn">🏠 首頁</a>
-
-<style>
-  .back-home-btn {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    z-index: 99999;
-    background: rgba(15, 23, 42, 0.9); /* 深色半透明背景 */
-    color: #ffffff;
-    padding: 10px 16px;
-    border-radius: 30px;
-    text-decoration: none;
-    font-size: 14px;
-    font-weight: 600;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-    backdrop-filter: blur(4px); /* 模糊背景效果 */
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    transition: all 0.2s ease;
-  }
-
-  /* 手機按壓時的縮放回饋 */
-  .back-home-btn:active {
-    transform: scale(0.92);
-    background: #0f172a;
-  }
-</style>
 </body>
 </html>
