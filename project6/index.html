@@ -10,6 +10,36 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <!-- Supabase JS SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- 🌟 表格與富文字專用 CSS (覆蓋 Tailwind 預設並優化貼上表格樣式) -->
+  <style>
+    .rich-content table {
+      border-collapse: collapse !important;
+      width: 100% !important;
+      margin: 8px 0 !important;
+      border: 1px solid #cbd5e1 !important;
+      background-color: #ffffff;
+    }
+    .rich-content th, .rich-content td {
+      border: 1px solid #cbd5e1 !important;
+      padding: 6px 10px !important;
+      text-align: left;
+      min-width: 60px;
+    }
+    .rich-content th {
+      background-color: #f1f5f9 !important;
+      font-weight: 600 !important;
+    }
+    /* 表格在手機端超出時可橫向滾動 */
+    .rich-content {
+      overflow-x: auto;
+    }
+    /* Contenteditable Placeholder 提示字 */
+    #docContent:empty:before {
+      content: attr(placeholder);
+      color: #94a3b8;
+    }
+  </style>
 </head>
 <body class="bg-slate-100 min-h-screen text-slate-800">
 
@@ -36,7 +66,7 @@
     </div>
   </div>
 
-  <!-- 頁首 Header (精簡高度以最佳化手機頂部空間) -->
+  <!-- 頁首 Header -->
   <header class="bg-indigo-600 text-white shadow-md sticky top-0 z-30">
     <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-2">
       <div class="flex items-center gap-2">
@@ -84,9 +114,15 @@
           <input type="text" id="docTitle" required placeholder="例如：2026年第二季部門會議紀錄" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
         </div>
 
+        <!-- 🌟 富文字/表格貼上區塊 -->
         <div>
-          <label class="block text-sm font-semibold mb-1 text-slate-700">內容說明</label>
-          <textarea id="docContent" rows="3" placeholder="請輸入文件摘要、重點備註或內容說明..." class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"></textarea>
+          <div class="flex justify-between items-center mb-1">
+            <label class="block text-sm font-semibold text-slate-700">內容說明 <span class="text-xs font-normal text-indigo-600">(可貼上 Excel/Word 表格)</span></label>
+            <button type="button" onclick="document.getElementById('docContent').innerHTML=''" class="text-xs text-slate-400 hover:text-red-500">
+              <i class="fa-solid fa-eraser"></i> 清空內容
+            </button>
+          </div>
+          <div id="docContent" contenteditable="true" placeholder="請輸入內文，或直接複製貼上 Excel / Word 表格..." class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none min-h-[140px] max-h-[300px] overflow-y-auto bg-white rich-content"></div>
         </div>
 
         <div>
@@ -111,16 +147,14 @@
     <!-- 右側：快速查詢與資料清單 -->
     <section class="lg:col-span-8 space-y-4">
       
-      <!-- 🌟 搜尋與分類篩選工具列 (手機版固定顯示於 Header 下方 top-[52px]) -->
+      <!-- 搜尋與分類篩選工具列 -->
       <div class="sticky top-[52px] sm:top-[58px] z-20 bg-slate-100/95 backdrop-blur-md pt-2 pb-3 -mx-4 px-4 sm:mx-0 sm:px-0 sm:py-0 sm:bg-transparent">
         <div class="bg-white p-3.5 sm:p-4 rounded-xl shadow-md sm:shadow-sm border border-slate-200 flex flex-col md:flex-row gap-2.5 sm:gap-3 items-center justify-between">
-          <!-- 關鍵字搜尋輸入框 -->
           <div class="relative w-full md:w-2/3">
             <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-400"></i>
-            <input type="text" id="searchInput" placeholder="快速查詢標題、內容、分類或夾帶檔名..." class="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+            <input type="text" id="searchInput" placeholder="快速查詢標題、表格內文、分類或夾帶檔名..." class="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
           </div>
 
-          <!-- 分類下拉篩選 -->
           <div class="w-full md:w-1/3">
             <select id="filterCategory" class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
               <option value="ALL">全部分類 (顯示全部)</option>
@@ -449,7 +483,8 @@
 
       const category = docCategorySelect.value;
       const title = document.getElementById('docTitle').value.trim();
-      const content = document.getElementById('docContent').value.trim();
+      // 🌟 讀取含 HTML 表格的富文字內容
+      const content = document.getElementById('docContent').innerHTML.trim();
       const photoFile = docPhotoInput.files[0];
       const attachmentFile = document.getElementById('docFile').files[0];
 
@@ -474,6 +509,7 @@
         if (error) throw error;
 
         docForm.reset();
+        document.getElementById('docContent').innerHTML = ''; // 清空富文字框
         photoPreview.classList.add('hidden');
         await loadAndRenderDocs();
       } catch (err) {
@@ -497,9 +533,11 @@
 
       const filtered = allDocs.filter(doc => {
         const matchCat = selectedCat === 'ALL' || doc.category === selectedCat;
+        // 過濾搜尋時，移除 HTML 標籤比對純文字內容
+        const textOnlyContent = doc.content ? doc.content.replace(/<[^>]*>/g, '') : '';
         const matchSearch = !query || 
           doc.title.toLowerCase().includes(query) || 
-          (doc.content && doc.content.toLowerCase().includes(query)) || 
+          textOnlyContent.toLowerCase().includes(query) || 
           doc.category.toLowerCase().includes(query) ||
           (doc.file_name && doc.file_name.toLowerCase().includes(query));
         return matchCat && matchSearch;
@@ -522,7 +560,10 @@
           year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
         });
 
-        const formattedContent = doc.content ? doc.content.replace(/\n/g, '<br>') : '<span class="text-slate-400 italic">無內文說明</span>';
+        // 🌟 直接渲染 HTML 表格內文，並允許水平滾動
+        const formattedContent = doc.content && doc.content.trim() !== ''
+          ? `<div class="rich-content overflow-x-auto text-sm text-slate-700 leading-relaxed">${doc.content}</div>`
+          : '<span class="text-slate-400 italic">無內文說明</span>';
 
         const photoHtml = doc.photo_url ? `
           <div class="mt-3">
@@ -557,7 +598,7 @@
               </button>
             </div>
 
-            <p class="text-sm text-slate-600 leading-relaxed line-clamp-3">${formattedContent}</p>
+            ${formattedContent}
 
             ${photoHtml}
             ${fileHtml}
@@ -575,7 +616,7 @@
       }).join('');
     }
 
-    // 🌟 手機相容新視窗獨立閱讀頁
+    // 🌟 手機相容新視窗獨立閱讀頁 (包含表格樣式)
     window.openDocInNewWindow = function(id) {
       const doc = allDocs.find(d => d.id === id);
       if (!doc) return;
@@ -584,7 +625,9 @@
         year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
       });
 
-      const formattedContent = doc.content ? doc.content.replace(/\n/g, '<br>') : '<span class="text-slate-400 italic">無內文說明</span>';
+      const formattedContent = doc.content && doc.content.trim() !== ''
+        ? `<div class="rich-content overflow-x-auto text-base text-slate-800 leading-relaxed">${doc.content}</div>`
+        : '<span class="text-slate-400 italic">無內文說明</span>';
 
       const photoHtml = doc.photo_url ? `
         <div class="space-y-2">
@@ -621,6 +664,24 @@
           <title>${escapeHtml(doc.title)}</title>
           <script src="https://cdn.tailwindcss.com"><\/script>
           <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+          <style>
+            .rich-content table {
+              border-collapse: collapse !important;
+              width: 100% !important;
+              margin: 12px 0 !important;
+              border: 1px solid #cbd5e1 !important;
+              background-color: #ffffff;
+            }
+            .rich-content th, .rich-content td {
+              border: 1px solid #cbd5e1 !important;
+              padding: 8px 12px !important;
+              text-align: left;
+            }
+            .rich-content th {
+              background-color: #f1f5f9 !important;
+              font-weight: 600 !important;
+            }
+          </style>
         </head>
         <body class="bg-slate-100 min-h-screen text-slate-800 p-3 sm:p-6">
           <div class="max-w-3xl mx-auto bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
@@ -640,7 +701,7 @@
 
               <div class="space-y-2">
                 <h3 class="text-sm font-bold text-slate-500"><i class="fa-solid fa-align-left text-indigo-500"></i> 文件內容</h3>
-                <div class="text-base sm:text-lg text-slate-700 leading-relaxed bg-slate-50 p-4 rounded-xl border border-slate-100 whitespace-pre-line">${formattedContent}</div>
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">${formattedContent}</div>
               </div>
 
               ${photoHtml}
