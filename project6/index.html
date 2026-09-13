@@ -33,12 +33,12 @@
     .rich-content {
       overflow-x: auto;
     }
-    #docContent:empty:before {
+    #docContent:empty:before, #editDocContent:empty:before {
       content: attr(placeholder);
       color: #94a3b8;
     }
 
-    /* 自訂左側表單區塊滾動條（精細美化） */
+    /* 自訂選單與表單滾動條 */
     .custom-scrollbar::-webkit-scrollbar {
       width: 5px;
     }
@@ -104,7 +104,7 @@
   <!-- 主內容區 -->
   <main class="max-w-7xl mx-auto px-4 py-4 sm:py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-    <!-- 🌟 左側：新增文件表單 (電腦版設定獨立固定與獨立滾動) -->
+    <!-- 左側：新增文件表單 (電腦版固定左側獨立滾動) -->
     <section class="lg:col-span-4 bg-white p-5 sm:p-6 rounded-xl shadow-sm border border-slate-200 lg:sticky lg:top-[68px] lg:max-h-[calc(100vh-85px)] lg:overflow-y-auto custom-scrollbar shrink-0">
       <h2 class="text-lg font-bold mb-4 flex items-center text-indigo-600 border-b pb-2">
         <i class="fa-solid fa-plus-circle mr-2"></i> 新增文件項目
@@ -157,7 +157,7 @@
       </form>
     </section>
 
-    <!-- 右側：快速查詢與資料清單 (獨立滑動區) -->
+    <!-- 右側：快速查詢與資料清單 -->
     <section class="lg:col-span-8 space-y-4 min-w-0">
       
       <!-- 搜尋與分類篩選工具列 -->
@@ -189,6 +189,83 @@
     </section>
 
   </main>
+
+  <!-- ✏️ 編輯文件 Modal 彈出視窗 -->
+  <div id="editDocModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+    <div class="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-2xl mx-4 p-6 space-y-4 max-h-[90vh] overflow-y-auto custom-scrollbar">
+      <div class="flex justify-between items-center border-b pb-3">
+        <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+          <i class="fa-solid fa-pen-to-square text-indigo-600"></i> 編輯文件資料與分類
+        </h3>
+        <button onclick="closeEditDocModal()" class="text-slate-400 hover:text-slate-600 text-lg p-1">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <form id="editDocForm" class="space-y-4">
+        <input type="hidden" id="editDocId">
+
+        <!-- 重新分類 -->
+        <div>
+          <label class="block text-sm font-semibold mb-1 text-slate-700">重新分類 <span class="text-red-500">*</span></label>
+          <select id="editDocCategorySelect" required class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+          </select>
+        </div>
+
+        <!-- 標題 -->
+        <div>
+          <label class="block text-sm font-semibold mb-1 text-slate-700">文件標題 <span class="text-red-500">*</span></label>
+          <input type="text" id="editDocTitle" required class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+        </div>
+
+        <!-- 內容 -->
+        <div>
+          <div class="flex justify-between items-center mb-1">
+            <label class="block text-sm font-semibold text-slate-700">內容說明 <span class="text-xs font-normal text-indigo-600">(可貼/編輯 Excel/Word 表格)</span></label>
+            <button type="button" onclick="document.getElementById('editDocContent').innerHTML=''" class="text-xs text-slate-400 hover:text-red-500">
+              <i class="fa-solid fa-eraser"></i> 清空
+            </button>
+          </div>
+          <div id="editDocContent" contenteditable="true" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none min-h-[130px] max-h-[260px] overflow-y-auto bg-white rich-content"></div>
+        </div>
+
+        <!-- 照片 -->
+        <div>
+          <label class="block text-sm font-semibold mb-1 text-slate-700">照片 / 圖片</label>
+          <div id="editCurrentPhotoContainer" class="mb-2 hidden flex items-center gap-3 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+            <img id="editCurrentPhotoImg" src="" class="h-16 w-16 object-cover rounded border">
+            <div class="text-xs text-slate-500">
+              <span class="font-medium text-slate-700">目前已有上傳照片</span>
+              <button type="button" onclick="removeEditPhoto()" class="block text-red-500 hover:underline mt-1 font-semibold">
+                <i class="fa-solid fa-trash"></i> 移除目前照片
+              </button>
+            </div>
+          </div>
+          <input type="file" id="editDocPhoto" accept="image/*" class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer">
+        </div>
+
+        <!-- 檔案 -->
+        <div>
+          <label class="block text-sm font-semibold mb-1 text-slate-700">夾帶檔案</label>
+          <div id="editCurrentFileContainer" class="mb-2 hidden flex items-center justify-between bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-xs">
+            <span id="editCurrentFileName" class="truncate font-medium text-slate-700"></span>
+            <button type="button" onclick="removeEditFile()" class="text-red-500 hover:underline font-semibold shrink-0 ml-2">
+              <i class="fa-solid fa-trash"></i> 移除檔案
+            </button>
+          </div>
+          <input type="file" id="editDocFile" class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 cursor-pointer">
+        </div>
+
+        <!-- 底部按鈕 -->
+        <div class="flex justify-end gap-2 border-t pt-3">
+          <button type="button" onclick="closeEditDocModal()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium">取消</button>
+          <button type="submit" id="editSubmitBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2">
+            <i class="fa-solid fa-floppy-disk"></i> 儲存修改
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <!-- 分類管理員 Modal -->
   <div id="categoryModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden">
@@ -274,6 +351,10 @@
     const passwordModal = document.getElementById('passwordModal');
     const changePasswordForm = document.getElementById('changePasswordForm');
 
+    const editDocModal = document.getElementById('editDocModal');
+    const editDocForm = document.getElementById('editDocForm');
+    const editSubmitBtn = document.getElementById('editSubmitBtn');
+
     const docForm = document.getElementById('docForm');
     const docCategorySelect = document.getElementById('docCategorySelect');
     const docPhotoInput = document.getElementById('docPhoto');
@@ -292,6 +373,10 @@
 
     let allDocs = [];
     let allCategories = [];
+    let editingPhotoUrl = null;
+    let editingFileUrl = null;
+    let editingFileName = null;
+    let editingFileSize = null;
 
     // --- 🔑 登入與權限控制 ---
     async function checkAuth() {
@@ -603,9 +688,16 @@
                 </span>
                 <h3 class="text-lg font-bold text-slate-800">${escapeHtml(doc.title)}</h3>
               </div>
-              <button onclick="deleteDoc(${doc.id})" title="刪除" class="text-slate-300 hover:text-red-500 p-1 text-sm">
-                <i class="fa-solid fa-trash-can"></i>
-              </button>
+              
+              <!-- 🌟 編輯與刪除按鈕區塊 -->
+              <div class="flex items-center gap-1 shrink-0">
+                <button onclick="openEditDocModal(${doc.id})" title="編輯文件" class="text-slate-400 hover:text-indigo-600 p-1.5 text-sm rounded hover:bg-slate-100 transition-colors">
+                  <i class="fa-solid fa-pen-to-square"></i>
+                </button>
+                <button onclick="deleteDoc(${doc.id})" title="刪除文件" class="text-slate-400 hover:text-red-500 p-1.5 text-sm rounded hover:bg-slate-100 transition-colors">
+                  <i class="fa-solid fa-trash-can"></i>
+                </button>
+              </div>
             </div>
 
             ${formattedContent}
@@ -625,6 +717,119 @@
         `;
       }).join('');
     }
+
+    // 🌟 編輯文件 Modal 邏輯
+    window.openEditDocModal = function(id) {
+      const doc = allDocs.find(d => d.id === id);
+      if (!doc) return;
+
+      document.getElementById('editDocId').value = doc.id;
+
+      // 載入與設定分類下拉選單
+      const editCatSelect = document.getElementById('editDocCategorySelect');
+      editCatSelect.innerHTML = allCategories.map(cat => 
+        `<option value="${escapeHtml(cat.name)}">${escapeHtml(cat.name)}</option>`
+      ).join('');
+      editCatSelect.value = doc.category;
+
+      document.getElementById('editDocTitle').value = doc.title || '';
+      document.getElementById('editDocContent').innerHTML = doc.content || '';
+
+      // 清空檔案上傳 input
+      document.getElementById('editDocPhoto').value = '';
+      document.getElementById('editDocFile').value = '';
+
+      // 設定當前照片狀態
+      editingPhotoUrl = doc.photo_url || null;
+      const photoContainer = document.getElementById('editCurrentPhotoContainer');
+      if (editingPhotoUrl) {
+        document.getElementById('editCurrentPhotoImg').src = editingPhotoUrl;
+        photoContainer.classList.remove('hidden');
+      } else {
+        photoContainer.classList.add('hidden');
+      }
+
+      // 設定當前檔案狀態
+      editingFileUrl = doc.file_url || null;
+      editingFileName = doc.file_name || null;
+      editingFileSize = doc.file_size || null;
+      const fileContainer = document.getElementById('editCurrentFileContainer');
+      if (editingFileUrl) {
+        document.getElementById('editCurrentFileName').textContent = `目前檔案：${doc.file_name} (${formatBytes(doc.file_size)})`;
+        fileContainer.classList.remove('hidden');
+      } else {
+        fileContainer.classList.add('hidden');
+      }
+
+      editDocModal.classList.remove('hidden');
+    };
+
+    function closeEditDocModal() {
+      editDocModal.classList.add('hidden');
+    }
+
+    function removeEditPhoto() {
+      editingPhotoUrl = null;
+      document.getElementById('editCurrentPhotoContainer').classList.add('hidden');
+    }
+
+    function removeEditFile() {
+      editingFileUrl = null;
+      editingFileName = null;
+      editingFileSize = null;
+      document.getElementById('editCurrentFileContainer').classList.add('hidden');
+    }
+
+    editDocForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = document.getElementById('editDocId').value;
+      const category = document.getElementById('editDocCategorySelect').value;
+      const title = document.getElementById('editDocTitle').value.trim();
+      const content = document.getElementById('editDocContent').innerHTML.trim();
+      
+      const newPhotoFile = document.getElementById('editDocPhoto').files[0];
+      const newAttachmentFile = document.getElementById('editDocFile').files[0];
+
+      editSubmitBtn.disabled = true;
+      editSubmitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> 儲存中...`;
+
+      try {
+        let photoUrl = editingPhotoUrl;
+        if (newPhotoFile) {
+          photoUrl = await uploadToStorage(newPhotoFile, 'photos');
+        }
+
+        let fileUrl = editingFileUrl;
+        let fileName = editingFileName;
+        let fileSize = editingFileSize;
+        if (newAttachmentFile) {
+          fileUrl = await uploadToStorage(newAttachmentFile, 'attachments');
+          fileName = newAttachmentFile.name;
+          fileSize = newAttachmentFile.size;
+        }
+
+        const updatedDoc = {
+          category,
+          title,
+          content,
+          photo_url: photoUrl,
+          file_url: fileUrl,
+          file_name: fileName,
+          file_size: fileSize
+        };
+
+        const { error } = await db.from('documents').update(updatedDoc).eq('id', id);
+        if (error) throw error;
+
+        closeEditDocModal();
+        await loadAndRenderDocs();
+      } catch (err) {
+        alert('更新文件失敗：' + err.message);
+      } finally {
+        editSubmitBtn.disabled = false;
+        editSubmitBtn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> 儲存修改`;
+      }
+    });
 
     // 🌟 手機相容新視窗獨立閱讀頁
     window.openDocInNewWindow = function(id) {
@@ -751,35 +956,5 @@
 
     checkAuth();
   </script>
-  <!-- === 浮動返回首頁按鈕 === -->
-<a href="../" class="back-home-btn">🏠 首頁</a>
-
-<style>
-  .back-home-btn {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    z-index: 99999;
-    background: rgba(15, 23, 42, 0.9); /* 深色半透明背景 */
-    color: #ffffff;
-    padding: 10px 16px;
-    border-radius: 30px;
-    text-decoration: none;
-    font-size: 14px;
-    font-weight: 600;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-    backdrop-filter: blur(4px); /* 模糊背景效果 */
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    transition: all 0.2s ease;
-  }
-
-  /* 手機按壓時的縮放回饋 */
-  .back-home-btn:active {
-    transform: scale(0.92);
-    background: #0f172a;
-  }
-</style>
 </body>
 </html>
